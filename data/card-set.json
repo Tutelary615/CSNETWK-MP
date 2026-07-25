@@ -1,0 +1,137 @@
+[
+  {
+    "id": "mountain_001",
+    "name": "Mountain",
+    "card_type": "land",
+    "mana_cost": {},
+    "colors": [],
+    "effect": { "produces": { "R": 1 } }
+  },
+  {
+    "id": "mountain_002",
+    "name": "Mountain",
+    "card_type": "land",
+    "mana_cost": {},
+    "colors": [],
+    "effect": { "produces": { "R": 1 } }
+  },
+  {
+    "id": "mountain_003",
+    "name": "Mountain",
+    "card_type": "land",
+    "mana_cost": {},
+    "colors": [],
+    "effect": { "produces": { "R": 1 } }
+  },
+  {
+    "id": "forest_001",
+    "name": "Forest",
+    "card_type": "land",
+    "mana_cost": {},
+    "colors": [],
+    "effect": { "produces": { "G": 1 } }
+  },
+  {
+    "id": "forest_002",
+    "name": "Forest",
+    "card_type": "land",
+    "mana_cost": {},
+    "colors": [],
+    "effect": { "produces": { "G": 1 } }
+  },
+  {
+    "id": "lightning_bolt_001",
+    "name": "Lightning Bolt",
+    "card_type": "instant",
+    "mana_cost": { "R": 1 },
+    "colors": ["R"],
+    "effect": { "damage": { "amount": 3, "target": "any" } }
+  },
+  {
+    "id": "lightning_bolt_002",
+    "name": "Lightning Bolt",
+    "card_type": "instant",
+    "mana_cost": { "R": 1 },
+    "colors": ["R"],
+    "effect": { "damage": { "amount": 3, "target": "any" } }
+  },
+  {
+    "id": "shock_001",
+    "name": "Shock",
+    "card_type": "instant",
+    "mana_cost": { "R": 1 },
+    "colors": ["R"],
+    "effect": { "damage": { "amount": 2, "target": "any" } }
+  },
+  {
+    "id": "shock_002",
+    "name": "Shock",
+    "card_type": "instant",
+    "mana_cost": { "R": 1 },
+    "colors": ["R"],
+    "effect": { "damage": { "amount": 2, "target": "any" } }
+  },
+  {
+    "id": "goblin_guide_001",
+    "name": "Goblin Guide",
+    "card_type": "creature",
+    "mana_cost": { "R": 1 },
+    "colors": ["R"],
+    "power": 2,
+    "toughness": 2,
+    "keywords": ["haste"],
+    "effect": {
+      "trigger": {
+        "event": "attacks",
+        "effect": { "opponent_reveal_and_draw": { "land_goes_to_top": true } }
+      }
+    }
+  },
+  {
+    "id": "grizzly_bears_001",
+    "name": "Grizzly Bears",
+    "card_type": "creature",
+    "mana_cost": { "generic": 1, "G": 1 },
+    "colors": ["G"],
+    "power": 2,
+    "toughness": 2,
+    "keywords": []
+  },
+  {
+    "id": "grizzly_bears_002",
+    "name": "Grizzly Bears",
+    "card_type": "creature",
+    "mana_cost": { "generic": 1, "G": 1 },
+    "colors": ["G"],
+    "power": 2,
+    "toughness": 2,
+    "keywords": []
+  },
+  {
+    "id": "wall_of_stone_001",
+    "name": "Wall of Stone",
+    "card_type": "creature",
+    "mana_cost": { "generic": 1, "R": 2 },
+    "colors": ["R"],
+    "power": 0,
+    "toughness": 8,
+    "keywords": ["defender"],
+    "effect": {}
+  },
+  {
+    "id": "llanowar_elves_001",
+    "name": "Llanowar Elves",
+    "card_type": "creature",
+    "mana_cost": { "G": 1 },
+    "colors": ["G"],
+    "power": 1,
+    "toughness": 1,
+    "keywords": [],
+    "effect": {
+      "activated_ability": {
+        "cost": { "tap": true },
+        "effect": { "produces": { "G": 1 } }
+      }
+    }
+  }
+]
