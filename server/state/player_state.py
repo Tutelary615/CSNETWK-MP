@@ -1,0 +1,2 @@
+class PlayerState:
+    pass
