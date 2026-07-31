@@ -1,4 +1,7 @@
-# Entry point: start asyncio server on port 4444
+"""
+Entry point: start asyncio server on port 4444
+"""
+
 import asyncio # to install
 import logging
 import sys

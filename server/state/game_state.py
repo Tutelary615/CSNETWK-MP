@@ -1,3 +1,7 @@
+"""
+Contains game state data
+"""
+
 from dataclasses import dataclass, field
 
 from server.state.player_state import PlayerState

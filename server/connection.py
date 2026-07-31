@@ -1,5 +1,10 @@
+"""
+Handles the client-server connection
+"""
+
 import asyncio
 import logging
+from shared.framing import read_pdu
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +25,8 @@ async def handle_client(reader: asyncio.StreamReader,
 
     try:
         while True:
-            #pdu = await read_pdu(reader)
-            #logger.debug("RX [%s]: %s", provisional_id, pdu)
+            pdu = await read_pdu(reader)
+            logger.debug("RX [%s]: %s", provisional_id, pdu)
 
             """
             if pdu.get("type") == "PLAYER_READY":

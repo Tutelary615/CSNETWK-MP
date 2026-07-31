@@ -1,4 +1,6 @@
-# Entry point: connects to server, starts client
+"""
+Entry point: connects to server, starts client
+"""
 
 import asyncio
 import logging
