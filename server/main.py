@@ -1,5 +1,5 @@
 """
-Entry point: start asyncio server on port 4444
+Entry point for server: start asyncio server on port 4444
 """
 
 import asyncio # to install
@@ -11,7 +11,7 @@ from server.game_server import GameServer
 from server.connection import handle_client
 
 logging.basicConfig(
-    level = logging.INFO,
+    level = logging.INFO, # TODO: Change to PDU-level logging 
     format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     stream = sys.stdout
 )

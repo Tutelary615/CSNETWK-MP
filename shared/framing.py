@@ -9,7 +9,7 @@ import struct
 MAX_PDU_SIZE = 65535
 HEADER_SIZE = 4
 
-# Reads PDU received from client-server
+# Deserialize PDU from the stream
 async def read_pdu(reader: asyncio.StreamReader) -> dict:
     try:
         header = await reader.readexactly(HEADER_SIZE)
@@ -29,4 +29,15 @@ async def read_pdu(reader: asyncio.StreamReader) -> dict:
         raise ConnectionResetError("Connection closed while reading PDU payload.")
 
     return json.loads(payload.decode("utf-8"))
+
+# Serialize PDU as JSON to the stream
+async def write_pdu(writer: asyncio.StreamWriter, pdu: dict) -> None:
+    payload = json.dumps(pdu, separators=(",", ":")).encode("utf-8")
+
+    if len(payload) > MAX_PDU_SIZE:
+        raise ValueError(f"PDU too large to send.")
+
+    header = struct.pack(">I", len(payload))
+    writer.write(header + payload)
+    await writer.drain()
 

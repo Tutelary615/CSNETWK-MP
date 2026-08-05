@@ -1,5 +1,5 @@
 """
-Entry point: connects to server, starts client
+Entry point for client: connects to server, starts client
 """
 
 import asyncio

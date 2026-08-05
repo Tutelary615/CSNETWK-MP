@@ -2,6 +2,43 @@
 Contains all string literals for PDU types, phases, error codes, etc.
 """
 
+# Game lifecycle phases for phase transition
+class Phase:
+    LOBBY = "LOBBY"
+    MULLIGAN = "MULLIGAN"
+    UNTAP = "UNTAP"
+    UPKEEP = "UPKEEP"
+    DRAW = "DRAW"
+    PRECOMBAT_MAIN = "PRECOMBAT_MAIN"
+    BEGIN_COMBAT = "BEGIN_COMBAT"
+    DECLARE_ATTACKERS = "DECLARE_ATTACKERS"
+    DECLARE_BLOCKERS = "DECLARE_BLOCKERS"
+    ASSIGN_DAMAGE_ORDER = "ASSIGN_DAMAGE_ORDER"
+    FIRST_STRIKE_DAMAGE = "FIRST_STRIKE_DAMAGE"
+    COMBAT_DAMAGE = "COMBAT_DAMAGE"
+    END_OF_COMBAT = "END_OF_COMBAT"
+    POSTCOMBAT_MAIN = "POSTCOMBAT_MAIN"
+    END_STEP = "END_STEP"
+    CLEANUP = "CLEANUP"
+    GAME_OVER = "GAME_OVER"
+
+# Turn phase order (used by turn_manager)
+PHASE_ORDER = [
+    Phase.UNTAP,
+    Phase.UPKEEP,
+    Phase.DRAW,
+    Phase.PRECOMBAT_MAIN,
+    Phase.BEGIN_COMBAT,
+    Phase.DECLARE_ATTACKERS,
+    Phase.DECLARE_BLOCKERS,
+    Phase.ASSIGN_DAMAGE_ORDER,
+    Phase.COMBAT_DAMAGE,
+    Phase.END_OF_COMBAT,
+    Phase.POSTCOMBAT_MAIN,
+    Phase.END_STEP,
+    Phase.CLEANUP
+]
+
 # Store string literals of PDU types here for convenience
 class PDU:
     # C->S
@@ -32,6 +69,21 @@ class PDU:
     GAME_OVER = "GAME_OVER"
     ERROR = "ERROR"
     PONG = "PONG"
+
+# Error codes for ERROR PDUs
+class ErrorCode:
+    INVALID_JSON = "INVALID_JSON"
+    ILLEGAL_DECK = "ILLEGAL_DECK"
+    UNKNOWN_TYPE = "UNKNOWN_TYPE"
+    STALE_ACTION = "STALE_ACTION"
+    NOT_YOUR_PRIORITY = "NOT_YOUR_PRIORITY"
+    ILLEGAL_ACTION = "ILLEGAL_ACTION"
+    ILLEGAL_TARGET = "ILLEGAL_TARGET"
+    TRIGGER_ORDER_INVALID = "TRIGGER_ORDER_INVALID"
+    TRIGGER_CHOICE_INVALID = "TRIGGER_CHOICE_INVALID"
+    INSUFFICIENT_MANA = "INSUFFICIENT_MANA"
+    WRONG_PHASE = "WRONG_PHASE"
+    DUPLICATE_ID = "DUPLICATE_ID"
 
 # Global variables
 DEFAULT_PORT = 4444

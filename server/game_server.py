@@ -1,5 +1,5 @@
 """
-Handles and contains game server logic
+Handles and contains game server logic, holds all component references and implements it
 """
 
 import asyncio
@@ -27,12 +27,24 @@ class GameServer:
         self.ready_players: set[str] = set()
 
         # PDU dispatcher
-        self.dispatcher = Dispatcher()
-        self._register_handlers()
+        #self.dispatcher = Dispatcher()
+        #self._register_handlers()
 
 def _register_handlers(self) -> None:
     d = self.dispatcher
-    # TODO: Register PDUs here
+    # TODO: Register PDUs here (currently placeholders)
+    #d.register(PDU.PLAYER_READY, handle_player_ready)
+    #d.register(PDU.MULLIGAN_CHOICE, handle_mulligan_choice)
+    #d.register(PDU.PRIORITY_PASS, self.priority_manager.handle_pass)
+    #d.register(PDU.CAST_SPELL, handle_cast_spell)
+    #d.register(PDU.PLAY_LAND, handle_play_land)
+    #d.register(PDU.CONCEDE, handle_concede)
+    #d.register(PDU.DISCARD, handle_discard)
+    #d.register(PDU.PING, handle_ping)
+    #d.register(PDU.DECLARE_ATTACKERS, self.combat_manager.handle_declare_attackers)
+    #d.register(PDU.DECLARE_BLOCKERS, self.combat_manager.handle_declare_blockers)
+    #d.register(PDU.ASSIGN_DAMAGE_ORDER, self.combat_manager.handle_assign_damage_order)
+    
 
 def register_connection(self, player_id: str, writer: asyncio.StreamWriter) -> None:
     self._writers[player_id] = writer
