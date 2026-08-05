@@ -87,7 +87,7 @@ class ErrorCode:
 
 # Global variables
 DEFAULT_PORT = 4444
-#STARTING_LIFE =
+STARTING_LIFE = 20
 #MAX_HAND_SIZE =
 MAX_DECK_SIZE = 50
 MIN_DECK_SIZE = 1

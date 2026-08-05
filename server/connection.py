@@ -26,13 +26,17 @@ async def handle_client(reader: asyncio.StreamReader,
     try:
         while True:
             pdu = await read_pdu(reader)
-            logger.debug("RX [%s]: %s", provisional_id, pdu)
+            logger.debug("Received [%s]: %s", provisional_id, pdu)
 
-            """
             if pdu.get("type") == "PLAYER_READY":
                 chosen_id = pdu.get("player_id", provisional_id)
-            """
-    
+                if chosen_id != provisional_id:
+                    game_server.remove_connection(provisional_id)
+                    provisional_id = chosen_id
+                    game_server.register_connection(provisional_id, writer)
+
+            await game_server.handle_pdu(pdu, provisional_id)
+
     except ConnectionResetError:
         logger.warning("Player %s disconnected.", provisional_id)
     except Exception as e:
