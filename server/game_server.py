@@ -23,11 +23,12 @@ class GameServer:
         #self.card_catalog = load_catalog(CATALOG_PATH)
         
         self._writers: dict[str, asyncio.StreamWriter] = {}
+        
 
         self.ready_players: set[str] = set()
 
         # PDU dispatcher
-        #self.dispatcher = Dispatcher()
+        self.dispatcher = Dispatcher()
         #self._register_handlers()
 
 def _register_handlers(self) -> None:
