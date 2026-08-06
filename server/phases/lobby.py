@@ -69,7 +69,7 @@ async def lobby_state(pdu: dict, player_id: str, game_server : GameServer):
                 seq = state.next_seq(),
                 state = builder.lobby_state(
                     players_ready = len(game_server.ready_players),
-                    waiting_for = [] # TODO
+                    waiting_for = game_server.state.player_ids - player_id
                 )
             ))      
         
