@@ -3,6 +3,7 @@ Constructs outgoing PDU for the server
 """
 
 from shared.constants import PDU
+from shared.constants import GameStates
 
 # ERROR PDU (S->C)
 def error(seq: int, code: str, message: str, rejected_action: dict = None) -> dict:
@@ -19,7 +20,7 @@ def error(seq: int, code: str, message: str, rejected_action: dict = None) -> di
     return pdu
 
 # GAME STATE UPDATE PDU (S->C)
-def game_state_update(seq: int, game_state) -> dict:
+def game_state_update(seq: int, game_state : dict) -> dict:
     return {
         "type": PDU.GAME_STATE_UPDATE,
         "seq_num": seq,
@@ -108,4 +109,13 @@ def pong(seq: int, timestamp: int) -> dict:
         "type": PDU.PONG,
         "seq_num": seq,
         "timestamp": timestamp,
+    }
+    
+# GAME STATES PDUS
+
+def lobby_state(players_ready : int, waiting_for : list[int]) -> dict:
+    return {
+        'phase': GameStates.LOBBY,
+        'players_ready' : players_ready,
+        'waiting_for': waiting_for
     }

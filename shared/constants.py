@@ -84,6 +84,11 @@ class ErrorCode:
     INSUFFICIENT_MANA = "INSUFFICIENT_MANA"
     WRONG_PHASE = "WRONG_PHASE"
     DUPLICATE_ID = "DUPLICATE_ID"
+# Game states
+
+class GameStates:
+    LOBBY = "LOBBY"
+    
 
 # Global variables
 DEFAULT_PORT = 4444

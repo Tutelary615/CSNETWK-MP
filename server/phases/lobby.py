@@ -63,7 +63,15 @@ async def lobby_state(pdu: dict, player_id: str, game_server : GameServer):
     else:    
         game_server.state.players[player_id].deck = pdu['deck'] 
         game_server.ready_players.add(player_id)
-        
+        game_server.send_to(
+            player_id,
+            builder.game_state_update(
+                seq = state.next_seq(),
+                state = builder.lobby_state(
+                    players_ready = len(game_server.ready_players),
+                    waiting_for = [] # TODO
+                )
+            ))      
         
     # TODO: Update lobby state (not yet implemented)
     
