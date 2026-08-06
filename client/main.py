@@ -44,16 +44,17 @@ class MTGNPClient:
             #"deck_list": self.deck
         })
 
-        async def _receive_loop(self) -> None:
-            try:
-                while True:
-                    pdu = await read_pdu(self.reader)
-                    logger.debug("Receiving PDU: %s", pdu)
-                    # handle pdu
-            except ConnectionResetError:
-                print("\nDisconnected from server.")
-            except Exception as e:
-                logger.exception("Receive loop error: %s", e)
+    # TODO: Call this function in run()
+    async def _receive_loop(self) -> None:
+        try:
+            while True:
+                pdu = await read_pdu(self.reader)
+                logger.debug("Receiving PDU: %s", pdu)
+                # handle pdu
+        except ConnectionResetError:
+            print("\nDisconnected from server.")
+        except Exception as e:
+            logger.exception("Receive loop error: %s", e)
 
 def main():
     player_id = input("Enter your player name: ").strip()
