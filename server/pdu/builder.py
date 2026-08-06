@@ -19,7 +19,7 @@ def error(seq: int, code: str, message: str, rejected_action: dict = None) -> di
     return pdu
 
 # GAME STATE UPDATE PDU (S->C)
-def game_state_update(seq: int, game_state)ict) -> dict:
+def game_state_update(seq: int, game_state) -> dict:
     return {
         "type": PDU.GAME_STATE_UPDATE,
         "seq_num": seq,
@@ -51,7 +51,8 @@ def stack_push(seq: int, item_id: str, card_data: dict, controller_id: str) -> d
         "seq_num": seq,
         "item_id": item_id,
         "card_data": card_data,
-        "controller_id": controller_id,
+        "controller_id": controller_id
+    }
 
 # STACK RESOLVE PDU (S->C)
 def stack_resolve(seq: int, item_id: str, result_data: dict = None) -> dict:
@@ -69,7 +70,8 @@ def trigger_order(seq: int, triggers: list) -> dict:
     return {
         "type": PDU.TRIGGER_ORDER,
         "seq_num": seq,
-        "triggers": triggers,
+        "triggers": triggers
+    }
 
 # TRIGGER CHOICE PDU (S->C)
 def trigger_choice(seq: int, trigger_id: str, choices: list) -> dict:
