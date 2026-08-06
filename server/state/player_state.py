@@ -8,3 +8,5 @@ from dataclasses import dataclass, field
 class PlayerState:
     player_id: str
     life = STARTING_LIFE
+    deck : list[str]
+    
