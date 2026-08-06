@@ -17,30 +17,28 @@ logger = logging.getLogger(__name__)
 async def lobby_state(pdu: dict, player_id: str, game_server : GameServer):
     state = game_server.state
 
-    # TODO: Add handling for empty id code?
-    
-    # Duplicate ID check
+    # Empty ID check
     if len(player_id) == 0:
         await game_server.send_to(
             player_id,
             builder.error(
                 seq = state.next_seq(),
-                code = '', # ADD CODE FOR THIS
+                code = '', # TODO: ADD CODE FOR THIS
                 message = 'player_id is an empty string'
             )
         )
         return
-    
+
+    # Duplicate ID check
     elif player_id not in state.player_ids and pdu.get('player_id') in state.player_ids:
         await game_server.send_to(
-                        player_id,
-                        builder.error(
-                            seq = state.next_seq(),
-                            code = ec.DUPLICATE_ID,
-                            message = f"Player ID '{pdu.get('player_id')} is already taken.",
-                            rejected_action = pdu
-                        )
-                    )
+            player_id,
+            builder.error(
+                seq = state.next_seq(),
+                code = ec.DUPLICATE_ID,
+                message = f"Player ID '{pdu.get('player_id')} is already taken.",
+                rejected_action = pdu
+            ))
         return        
         
     deck_size = len(pdu['deck'])
@@ -63,7 +61,7 @@ async def lobby_state(pdu: dict, player_id: str, game_server : GameServer):
     else:    
         game_server.state.players[player_id].deck = pdu['deck'] 
         game_server.ready_players.add(player_id)
-        game_server.send_to(
+        await game_server.send_to(
             player_id,
             builder.game_state_update(
                 seq = state.next_seq(),
@@ -72,8 +70,6 @@ async def lobby_state(pdu: dict, player_id: str, game_server : GameServer):
                     waiting_for = game_server.state.player_ids - player_id
                 )
             ))      
-        
-    # TODO: Update lobby state (not yet implemented)
     
     if len(game_server.ready_players) == 2:
         logger.info("Both players ready. Starting GAME_SETUP.")

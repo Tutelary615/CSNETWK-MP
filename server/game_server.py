@@ -7,9 +7,10 @@ import logging
 import random # for randomizing deck
 from pathlib import Path
 
-from shared.constants import PDU
+from shared.constants import PDU, STARTING_LIFE
 from shared.framing import write_pdu
 
+from server.phases.lobby import lobby_state
 from server.state.game_state import GameState
 from server.state.player_state import PlayerState
 from server.pdu.dispatcher import Dispatcher
@@ -35,7 +36,7 @@ class GameServer:
     def _register_handlers(self) -> None:
         d = self.dispatcher
         # TODO: Register PDUs here (currently placeholders)
-        #d.register(PDU.PLAYER_READY, handle_player_ready)
+        d.register(PDU.PLAYER_READY, lobby_state)
         #d.register(PDU.MULLIGAN_CHOICE, handle_mulligan_choice)
         #d.register(PDU.PRIORITY_PASS, self.priority_manager.handle_pass)
         #d.register(PDU.CAST_SPELL, handle_cast_spell)
@@ -79,4 +80,15 @@ class GameServer:
     async def start_game_setup(self) -> None:
         all_card_ids = list(self.card_catalog.keys())
 
-        # TODO: Shuffling deck, game lifecycle transitions here
+        for pid, player in self.state.players.items():
+            player.life = STARTING_LIFE
+            player.library = random.choices(all_card_ids, k=50)
+            player.hand = []
+            player.graveyard = []
+            player.battlefield = []
+            player.shuffle_library()
+            player.draw_opening_hand(7)
+
+        self.state.active_player_id = random.choice(self.state.player_ids)
+
+        logger.info("First player: %s", self.state.active_player_id)

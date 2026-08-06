@@ -1,12 +1,18 @@
 """
 Contains player state data
 """
+import random
 from shared.constants import STARTING_LIFE
 from dataclasses import dataclass, field
 
 @dataclass
 class PlayerState:
     player_id: str
-    life = STARTING_LIFE
-    deck : list[str]
-    
+    life: int = STARTING_LIFE
+    library: list[str] = field(default_factory=list)
+    hand: list[str] = field(default_factory=list)
+    graveyard: list[str] = field(default_factory=list)
+    battlefield: list[str] = field(default_factory=list)
+
+    def shuffle_library(self) -> None:
+        random.shuffle(self.library)
