@@ -6,7 +6,7 @@ import asyncio
 import logging
 import sys
 
-from input_handler import render_lobby, render_game
+from client.display import render_lobby, render_game
 from shared.constants import DEFAULT_PORT, PDU
 from shared.framing import read_pdu, write_pdu
 
@@ -50,7 +50,6 @@ class MTGNPClient:
             # TODO: Handle input from player
         )
 
-    # TODO: Call this function in run()
     async def _receive_loop(self) -> None:
         try:
             while True:

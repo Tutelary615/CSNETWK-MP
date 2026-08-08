@@ -16,3 +16,7 @@ class PlayerState:
 
     def shuffle_library(self) -> None:
         random.shuffle(self.library)
+
+    def draw_opening_hand(self, count: int = 7) -> None:
+        for _ in range(count):
+            self.draw()

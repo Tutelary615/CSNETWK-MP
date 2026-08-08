@@ -7,6 +7,7 @@ import logging
 import random # for randomizing deck
 from pathlib import Path
 
+from shared.cards import load_catalog
 from shared.constants import PDU, STARTING_LIFE
 from shared.framing import write_pdu
 
@@ -15,7 +16,7 @@ from server.state.game_state import GameState
 from server.state.player_state import PlayerState
 from server.pdu.dispatcher import Dispatcher
 
-CATALOG_PATH = Path(__file__).parent.parent / "data" / "card_set.json"
+CATALOG_PATH = Path(__file__).parent.parent / "data" / "card-set.json"
 
 # Holds all component references, manages connection
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class GameServer:
     def __init__(self):
         self.state = GameState()
-        self.card_catalog = None #load_catalog(CATALOG_PATH)
+        self.card_catalog = load_catalog(CATALOG_PATH)
         
         self._writers: dict[str, asyncio.StreamWriter] = {}
         

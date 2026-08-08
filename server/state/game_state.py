@@ -18,7 +18,7 @@ class GameState:
     phase: str = Phase.LOBBY
 
     # For sequence counter (increments every PDU server sends)
-    seq_counter: int
+    seq_counter: int = 0
 
     def next_seq(self) -> int:
         self.seq_counter += 1
