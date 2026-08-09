@@ -8,10 +8,11 @@ import random # for randomizing deck
 from pathlib import Path
 
 from shared.cards import load_catalog
-from shared.constants import PDU, STARTING_LIFE
+from shared.constants import PDU, Phase, STARTING_LIFE
 from shared.framing import write_pdu
-
+from server.pdu import builder
 from server.phases.lobby import lobby_state
+from server.phases.mulligan import handle_mulligan_choice
 from server.state.game_state import GameState
 from server.state.player_state import PlayerState
 from server.pdu.dispatcher import Dispatcher
@@ -30,6 +31,9 @@ class GameServer:
         
         self.ready_players: set[str] = set()
 
+        # Used for mulligan seq validation
+        self.last_sent_seq: dict[str, int] = {}
+
         # PDU dispatcher
         self.dispatcher = Dispatcher()
         self._register_handlers()
@@ -38,7 +42,7 @@ class GameServer:
         d = self.dispatcher
         # TODO: Register PDUs here (currently placeholders)
         d.register(PDU.PLAYER_READY, lobby_state)
-        #d.register(PDU.MULLIGAN_CHOICE, handle_mulligan_choice)
+        d.register(PDU.MULLIGAN_CHOICE, handle_mulligan_choice)
         #d.register(PDU.PRIORITY_PASS, self.priority_manager.handle_pass)
         #d.register(PDU.CAST_SPELL, handle_cast_spell)
         #d.register(PDU.PLAY_LAND, handle_play_land)
@@ -66,6 +70,7 @@ class GameServer:
         if writer:
             try:
                 await write_pdu(writer, pdu)
+                self.last_sent_seq[player_id] = pdu.get("seq_num", 0)
             except (ConnectionResetError, BrokenPipeError):
                 logger.warning("Failed to send to '%s'. Connection lost.", player_id)
 
@@ -79,17 +84,26 @@ class GameServer:
 
 
     async def start_game_setup(self) -> None:
-        all_card_ids = list(self.card_catalog.keys())
+        self.state.phase = Phase.MULLIGAN # immediately transition to MULLIGAN phase
 
         for pid, player in self.state.players.items():
             player.life = STARTING_LIFE
-            player.library = random.choices(all_card_ids, k=50)
             player.hand = []
             player.graveyard = []
             player.battlefield = []
+            player.mulligan_count = 0
+            player.has_kept = False
             player.shuffle_library()
             player.draw_opening_hand(7)
 
+        # Coin flip: select random 1st player
         self.state.active_player_id = random.choice(self.state.player_ids)
+        self.state.turn = 0
 
         logger.info("First player: %s", self.state.active_player_id)
+
+        for pid in self.state.player_ids:
+            seq = self.state.next_seq()
+            view = self.state.to_visible_dict(pid) # personalized view
+            self.last_sent_seq[pid] = seq
+            await self.send_to(pid, builder.game_state_update(seq, view))

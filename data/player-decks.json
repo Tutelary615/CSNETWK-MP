@@ -1,0 +1,13 @@
+{
+  "player_1": [
+    "lightning_bolt_001", "lightning_bolt_002",
+    "shock_001", "shock_002",
+    "goblin_guide_001",
+    "mountain_001", "mountain_002", "mountain_003"
+  ],
+  "player_2": [
+    "grizzly_bears_001", "grizzly_bears_002",
+    "llanowar_elves_001",
+    "forest_001", "forest_002"
+  ]
+}

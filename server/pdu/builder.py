@@ -26,11 +26,16 @@ def game_state_update(seq: int, game_state : dict) -> dict:
         "game_state": game_state,
     }
 
-def lobby_state(players_ready : int, waiting_for : list[int]) -> dict:
+# LOBBY GAME STATE UPDATE (S->C)
+def lobby_state(seq: int, players_ready : int, waiting_for : list[int]) -> dict:
     return {
-        'phase': Phase.LOBBY,
-        'players_ready' : players_ready,
-        'waiting_for': waiting_for
+        "type": PDU.GAME_STATE_UPDATE,
+        "seq_num": seq,
+        "state": {
+            "phase": "LOBBY",
+            "players_ready": players_ready,
+            "waiting_for": waiting_for
+        }
     }
 
 # PHASE TRANSITION PDU (S->C)
