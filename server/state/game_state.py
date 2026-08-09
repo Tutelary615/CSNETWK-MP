@@ -38,7 +38,7 @@ class GameState:
             "active_player": self.active_player_id,
             "phase": self.phase,
             "life_totals": {pid: p.life for pid, p in self.players.items()},
-            "stack": self.stack.to_list(),
+            #"stack": self.stack.to_list(),
             "battlefield": {},
             "graveyard": {},
             "hand": {},
@@ -48,3 +48,5 @@ class GameState:
 
         for pid, player in self.players.items():
             pass
+
+        return state
