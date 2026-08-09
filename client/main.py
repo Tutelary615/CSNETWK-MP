@@ -6,12 +6,13 @@ import asyncio
 import logging
 import sys
 import json
+import argparse
 
 from pathlib import Path
 from client.display import render_lobby, render_game
 from client.input_handler import InputHandler
 from shared.constants import DEFAULT_PORT, PDU
-from shared.framing import read_pdu, write_pdu
+from shared.framing import read_pdu, write_pdu, set_verbose
 
 logging.basicConfig(
     level = logging.WARNING, # debugging for PDUs
@@ -22,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class MTGNPClient:
-    def __init__(self, slot: str, player_id: str, host: str, port: int):
+    def __init__(self, slot: str, player_id: str, host: str, port: int, verbose: bool = False):
         self.player_id = player_id
         self.deck = self._load_fixed_deck(slot)
         self.host = host
@@ -31,6 +32,7 @@ class MTGNPClient:
         self.writer = None
         self.handler = InputHandler(self)
         self.handler.my_id = player_id
+        self.verbose = verbose
 
     def _load_fixed_deck(self, player_id: str) -> list[str]:
         decks_path = Path(__file__).parent.parent / "data" / "player-decks.json"
@@ -50,7 +52,6 @@ class MTGNPClient:
         print(f"Connected to {self.host}:{self.port} as '{self.player_id}'")
 
     async def send(self, pdu: dict) -> None:
-        logger.debug("Sending PDU: %s", pdu)
         await write_pdu(self.writer, pdu)
 
     async def run(self) -> None:
@@ -131,19 +132,28 @@ class MTGNPClient:
             print(f"Unhandled PDU type: {pdu_type}")
 
 def main():
-    args = sys.argv[1:]
-    if len(args) < 1:
-        print("Usage: python -m client.main <slot>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="MTGNP Client")
+    parser.add_argument("slot", help="(e.g. player_1, player_2)")
+    parser.add_argument(
+        "-v", "--verbose",
+        action = "store_true",
+        help = "Print all PDUs sent and received to stdout"
+    )
+    args = parser.parse_args()
 
-    slot = args[0]
-    if slot not in ("player_1", "player_2"):
-        print("Slot must either be 'player_1' or 'player_2'.")
-        sys.exit(1)
+    level = logging.DEBUG if args.verbose else logging.WARNING
+    logging.basicConfig(
+        level = level,
+        format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        stream = sys.stderr
+    )
+    
+    if args.verbose:
+        set_verbose(True)
+        logger.info("Verbose mode ON. All PDUs will be printed.\n")
 
     player_id = input("Enter your player name: ").strip()
-    host = "127.0.0.1"
-    client = MTGNPClient(slot, player_id, host, DEFAULT_PORT)
+    client = MTGNPClient(args.slot, player_id, "127.0.0.1", DEFAULT_PORT, verbose=args.verbose)
 
     try:
         asyncio.run(client.run())
