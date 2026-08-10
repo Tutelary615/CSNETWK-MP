@@ -1,7 +1,7 @@
 """
 Handles PDU message framing
 """
-
+import sys
 import asyncio
 import json
 import struct
@@ -18,9 +18,10 @@ def set_verbose(enabled: bool) -> None:
 def _print_pdu(direction: str, pdu: dict) -> None:
     label = ">>>" if direction == "Sent" else "<<<"
     print(f"\n{label} [{direction}] {pdu.get('type', '?')}"
-          f"(seq={pdu.get('seq_num', '?')})")
-    print(json.dumps(pdu, indent=4))
-    print()
+          f"(seq={pdu.get('seq_num', '?')})",
+          file=sys.stderr)
+    print(json.dumps(pdu, indent=4), file = sys.stderr)
+    print(file=sys.stderr)
 
 # Deserialize PDU from the stream
 async def read_pdu(reader: asyncio.StreamReader) -> dict:

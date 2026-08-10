@@ -21,6 +21,7 @@ Commands:
 class InputHandler:
     def __init__(self, client):
         self.client = client
+        self.player_name = ""
         self.my_id = ""
         self.opponent_id = ""
 

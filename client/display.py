@@ -6,20 +6,20 @@ import os
 def clear_screen() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
-def render_lobby(state: dict, my_id: str) -> None:
+def render_lobby(state: dict, my_id: str, my_name: str) -> None:
     print("\n" + "=" * 50)
     print(" LOBBY ")
     print("=" * 50)
-    print(f"Player: {my_id}")
-    print(f"Players ready: {state.get('players_ready', 0)} / 2")
+    print(f"Player: {my_name} (id: {my_id})")
+    print(f"Players ready:{state.get('players_ready', 0)} / 2")
     waiting = state.get("waiting_for", [])
     if waiting:
-        print(f"Waiting for:  {', '.join(waiting)}")
+        print(f"Waiting for: {', '.join(waiting)}")
     else:
-        print(" Both players ready! Starting soon...")
+        print("Both players ready! Starting soon...")
     print("=" * 50)
 
-def render_game(state: dict, my_id: str) -> None:
+def render_game(state: dict, my_id: str, my_name: str) -> None:
     clear_screen()
 
     turn = state.get("turn", "?")
@@ -38,7 +38,7 @@ def render_game(state: dict, my_id: str) -> None:
 
     for pid, life, in lifes.items():
         marker = " <- YOU" if pid == my_id else ""
-        print(f" {pid}: {life} life{marker}")
+        print(f" {my_name}: {life} life{marker}")
 
     print()
 
@@ -50,7 +50,31 @@ def render_game(state: dict, my_id: str) -> None:
             opp_gy = gy.get(pid, [])
             print(f" [{pid}]")
             print(f" Library: {opp_lib} cards      Hand: {opp_hand} cards")
-            print(" Battlefield: pending")
+            print(f" Battlefield: {_format_battlefield(my_bf)}")
             print(f" Graveyard: { opp_gy or '(empty)'}")
+
+
+    print()
+
+    print()
+    print(" --- YOUR BOARD --- ")
+    my_bf = bf.get(my_id, [])
+    my_gy = gy. get(my_id, [])
+    my_lib = libs.get(my_id, "?")
+    print(f" Library: {my_lib} cards")
+    print(f" Battlefield: {_format_battlefield(my_bf)}")
+    print(f" Graveyard: {my_gy or '(empty)'}")
+
+    print()
+    print(" --- YOUR HAND ---")
+    if hand:
+        for i, card_id in enumerate(hand):
+            print(f" [{i}] {card_id}")
+    else:
+        print(" (empty)")
+
+def _format_battlefield(perms: list) -> str:
+    if not perms:
+        return "(empty)"
 
     

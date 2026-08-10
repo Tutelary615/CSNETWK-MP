@@ -23,14 +23,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class MTGNPClient:
-    def __init__(self, slot: str, player_id: str, host: str, port: int, verbose: bool = False):
+    def __init__(self, player_id: str, player_name: str, host: str, port: int, verbose: bool = False):
         self.player_id = player_id
-        self.deck = self._load_fixed_deck(slot)
+        self.deck = self._load_fixed_deck(player_id)
+        self.player_name = player_name
         self.host = host
         self.port = port
         self.reader = None
         self.writer = None
         self.handler = InputHandler(self)
+        self.handler.player_name = player_name
         self.handler.my_id = player_id
         self.verbose = verbose
 
@@ -94,9 +96,9 @@ class MTGNPClient:
                     pass
 
             if phase == "LOBBY":
-                render_lobby(state, self.player_id)
+                render_lobby(state, self.player_id, self.player_name)
             else:
-                render_game(state, self.player_id)
+                render_game(state, self.player_id, self.player_name)
 
         elif pdu_type == PDU.PHASE_TRANSITION:
             pass
@@ -133,7 +135,7 @@ class MTGNPClient:
 
 def main():
     parser = argparse.ArgumentParser(description="MTGNP Client")
-    parser.add_argument("slot", help="(e.g. player_1, player_2)")
+    parser.add_argument("player_id", help="(e.g. player_1, player_2)")
     parser.add_argument(
         "-v", "--verbose",
         action = "store_true",
@@ -152,8 +154,8 @@ def main():
         set_verbose(True)
         logger.info("Verbose mode ON. All PDUs will be printed.\n")
 
-    player_id = input("Enter your player name: ").strip()
-    client = MTGNPClient(args.slot, player_id, "127.0.0.1", DEFAULT_PORT, verbose=args.verbose)
+    player_name = input("Enter your player name: ").strip()
+    client = MTGNPClient(args.player_id, player_name, "127.0.0.1", DEFAULT_PORT, verbose=args.verbose)
 
     try:
         asyncio.run(client.run())

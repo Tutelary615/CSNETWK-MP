@@ -13,7 +13,7 @@ from server.game_server import GameServer
 from server.connection import handle_client
 
 logging.basicConfig(
-    level = logging.INFO, # TODO: Change to PDU-level logging 
+    level = logging.INFO,
     format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     stream = sys.stdout
 )
