@@ -91,9 +91,13 @@ class MTGNPClient:
             state = pdu.get("state", {})
             phase = state.get("phase", "")
 
+            # Update player hand and opponent id
+            my_hand = state.get("hand", {}).get(self.player_id, [])
+            self.handler.update_hand(my_hand)
+
             for pid in state.get("life_totals", {}):
                 if pid != self.player_id:
-                    pass
+                    self.handler.opponent_id = pid
 
             if phase == "LOBBY":
                 render_lobby(state, self.player_id, self.player_name)

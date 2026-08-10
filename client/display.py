@@ -11,7 +11,7 @@ def render_lobby(state: dict, my_id: str, my_name: str) -> None:
     print(" LOBBY ")
     print("=" * 50)
     print(f"Player: {my_name} (id: {my_id})")
-    print(f"Players ready:{state.get('players_ready', 0)} / 2")
+    print(f"Players ready: {state.get('players_ready', 0)} / 2")
     waiting = state.get("waiting_for", [])
     if waiting:
         print(f"Waiting for: {', '.join(waiting)}")
@@ -23,14 +23,17 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
     clear_screen()
 
     turn = state.get("turn", "?")
-    phase = state.get("phase", "?")
     ap = state.get("active_player", "?")
+    phase = state.get("phase", "?")
+    holder = state.get("priority_holder")
     lifes = state.get("life_totals", {})
+    stack = state.get("stack", [])
     bf = state.get("battlefield", {})
     gy = state.get("graveyard", {})
     hand = state.get("hand", {}).get(my_id, [])
     hcounts = state.get("hand_counts", {})
     libs = state.get("library_counts", {})
+    land = state.get("land_played_this_turn", False)
 
     print("\n" + "=" * 60)
     print(f" Turn {turn} | Phase: {phase} | Active: {ap}")
@@ -55,6 +58,8 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
 
 
     print()
+    print(" --- THE STACK ---")
+    # TODO: Print stack display here
 
     print()
     print(" --- YOUR BOARD --- ")
@@ -72,6 +77,18 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
             print(f" [{i}] {card_id}")
     else:
         print(" (empty)")
+
+    print()
+
+    if holder:
+        if holder == my_id:
+            print(" Priority: YOU ")
+        else:
+            print(f"Priority: {holder} (waiting...)")
+    print("=" * 60)
+    print()
+
+    print("Your move: ")
 
 def _format_battlefield(perms: list) -> str:
     if not perms:

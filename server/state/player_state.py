@@ -4,16 +4,19 @@ Contains player state data
 import random
 from typing import Optional
 from shared.constants import STARTING_LIFE
+from server.state.permanent import Permanent
 from dataclasses import dataclass, field
 
 @dataclass
 class PlayerState:
     player_id: str
+
     life: int = STARTING_LIFE
     library: list[str] = field(default_factory=list)
     hand: list[str] = field(default_factory=list)
     graveyard: list[str] = field(default_factory=list)
-    battlefield: list[str] = field(default_factory=list)
+    battlefield: list[Permanent] = field(default_factory=list)
+    land_played_this_turn: bool = False
 
     # For mulligan
     mulligan_count: int = 0

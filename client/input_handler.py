@@ -21,9 +21,17 @@ Commands:
 class InputHandler:
     def __init__(self, client):
         self.client = client
+        self.current_seq = 0 # updated by client when it receives PRIORITY_GRANT
         self.player_name = ""
         self.my_id = ""
         self.opponent_id = ""
+        self.last_hand = []
+
+    def update_seq(self, seq: int) -> None:
+        self.current_seq = seq
+
+    def update_hand(self, hand: list) -> None:
+        self.last_hand = hand
 
     # Continuously read lines from stdin and convert to PDU to be sent
     async def read_loop(self) -> None:
@@ -56,10 +64,30 @@ class InputHandler:
             print(HELP_TEXT)
             return None
 
-        # TODO: Insert other commands here
+        if cmd == "pass":
+            pass
 
-        print("Unknown command. Type 'help' for command list.")
-        return None
+        if cmd == "cast":
+            pass
+
+        if cmd == "land":
+            pass
+
+        if cmd == "attack":
+            pass
+
+        if cmd == "block":
+            pass
+
+        if cmd == "concede":
+            pass
+
+        elif cmd == "hand":
+            pass
+
+        else:
+            print("Unknown command. Type 'help' for command list.")
+            return None
 
         
             
