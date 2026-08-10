@@ -82,13 +82,30 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
 
     if holder:
         if holder == my_id:
-            print(" Priority: YOU ")
+            print("Priority: YOU")
         else:
             print(f"Priority: {holder} (waiting...)")
     print("=" * 60)
     print()
 
     print("Your move: ")
+
+def render_game_over(pdu: dict, my_id: str) -> None:
+    print("\n" + "=" * 50)
+    print("GAME OVER")
+    print("=" * 50)
+    winner = pdu.get("winner_id", "?")
+    reason = pdu.get("reason", "?")
+    if winner == my_id:
+        print("YOU WIN!")
+    else:
+        print("YOU LOSE.")
+    print(f"Reason: {reason}")
+    print("=" * 50)
+    print()
+
+def render_error(pdu: dict) -> None:
+    print(f"\n [ERROR] {pdu.get('code')}: {pdu.get('message')}")
 
 def _format_battlefield(perms: list) -> str:
     if not perms:

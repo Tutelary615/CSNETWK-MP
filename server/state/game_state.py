@@ -70,7 +70,7 @@ class GameState:
             state["graveyard"][pid] = len(player.graveyard)
 
             # Set library counts visible
-            state["library"][pid] = len(player.library)
+            #state["library_counts"][pid] = len(player.library)
 
             if pid == viewer_id:
                 state["hand"][pid] = list(player.hand) # viewer sees ther own hand

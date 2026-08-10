@@ -52,7 +52,10 @@ class GameServer:
         #d.register(PDU.DECLARE_ATTACKERS, self.combat_manager.handle_declare_attackers)
         #d.register(PDU.DECLARE_BLOCKERS, self.combat_manager.handle_declare_blockers)
         #d.register(PDU.ASSIGN_DAMAGE_ORDER, self.combat_manager.handle_assign_damage_order)
-    
+        #d.register(PDU.ACTIVATE_ABILITY, handler)
+        #d.register(PDU.TRIGGER_ORDER_RESPONSE, handler)
+        #d.register(PDU.TRIGGER_CHOICE_RESPONSE, handler)
+
     def register_connection(self, player_id: str, writer: asyncio.StreamWriter) -> None:
         self._writers[player_id] = writer
         if player_id not in self.state.players:
@@ -107,3 +110,33 @@ class GameServer:
             view = self.state.to_visible_dict(pid) # personalized view
             self.last_sent_seq[pid] = seq
             await self.send_to(pid, builder.game_state_update(seq, view))
+
+    async def start_in_game(self) -> None:
+        self.state.phase = Phase.UNTAP
+        # TODO: Begin turn handled by turn manager
+
+    async def end_game(self, winner_id: str, loser_id: str, reason: str) -> None:
+        logger.info("Game over. Winner: %s, Reason: %s", winner_id, reason)
+        self.state.phase = Phase.GAME_OVER
+
+        seq = self.state.next_seq()
+        await self.broadcast(builder.game_over(seq, winner_id, loser_id, reason))
+
+        await self._reset_for_lobby()
+
+    async def _reset_for_lobby(self) -> None:
+        # Tear down in-game state and return to LOBBY
+        self.state.phase = Phase.LOBBY
+        self.state.turn = 0
+        self.state.active_player_id = None
+        self.state.priority_holder_id = None
+        self.state.last_passer_id = None
+        self.state.seq_counter = 0
+        self.state.stack.clear()
+        self.ready_players.clear()
+
+        # Reset per-player state but keep the connections
+        for pid in list(self.state.player_ids):
+            self.state.players[pid] = PlayerState(player_id=pid)
+
+        logger.info("Returned to LOBBY. Awaiting PLAYER_READY PDUs.")
