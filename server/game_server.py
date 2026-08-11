@@ -16,6 +16,11 @@ from server.phases.mulligan import handle_mulligan_choice
 from server.state.game_state import GameState
 from server.state.player_state import PlayerState
 from server.pdu.dispatcher import Dispatcher
+from server.phases.combat import (
+    handle_declare_attackers,
+    handle_declare_blockers,
+    handle_assign_damage_order,
+)
 
 CATALOG_PATH = Path(__file__).parent.parent / "data" / "card-set.json"
 
@@ -43,15 +48,15 @@ class GameServer:
         # TODO: Register PDUs here (currently placeholders)
         d.register(PDU.PLAYER_READY, lobby_state)
         d.register(PDU.MULLIGAN_CHOICE, handle_mulligan_choice)
+        d.register(PDU.DECLARE_ATTACKERS, handle_declare_attackers)
+        d.register(PDU.DECLARE_BLOCKERS, handle_declare_blockers)
+        d.register(PDU.ASSIGN_DAMAGE_ORDER, handle_assign_damage_order)
         #d.register(PDU.PRIORITY_PASS, self.priority_manager.handle_pass)
         #d.register(PDU.CAST_SPELL, handle_cast_spell)
         #d.register(PDU.PLAY_LAND, handle_play_land)
         #d.register(PDU.CONCEDE, handle_concede)
         #d.register(PDU.DISCARD, handle_discard)
         #d.register(PDU.PING, handle_ping)
-        #d.register(PDU.DECLARE_ATTACKERS, self.combat_manager.handle_declare_attackers)
-        #d.register(PDU.DECLARE_BLOCKERS, self.combat_manager.handle_declare_blockers)
-        #d.register(PDU.ASSIGN_DAMAGE_ORDER, self.combat_manager.handle_assign_damage_order)
         #d.register(PDU.ACTIVATE_ABILITY, handler)
         #d.register(PDU.TRIGGER_ORDER_RESPONSE, handler)
         #d.register(PDU.TRIGGER_CHOICE_RESPONSE, handler)
