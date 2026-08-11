@@ -39,6 +39,9 @@ PHASE_ORDER = [
     Phase.CLEANUP
 ]
 
+NO_PRIORITY_PHASES = {Phase.UNTAP, Phase.CLEANUP}
+SORCERY_SPEED_PHASES = {Phase.PRECOMBAT_MAIN, Phase.POSTCOMBAT_MAIN}
+
 # Store string literals of PDU types here for convenience
 class PDU:
     # C->S
@@ -85,12 +88,25 @@ class ErrorCode:
     WRONG_PHASE = "WRONG_PHASE"
     DUPLICATE_ID = "DUPLICATE_ID"
 
+# GAME_OVER reasons
+class GameOverReason:
+    LIFE_ZERO = "LIFE_ZERO"
+    DECK_EMPTY = "DECK_EMPTY"
+    CONCEDE = "CONCEDE"
+    DISCONNECT = "DISCONNECT"
+
+# Stack item types
+class StackItemType:
+    SPELL = "SPELL"
+    ABILITY = "ABILITY"
+    TRIGGER_ABILITY = "TRIGGER_ABILITY"
+
 # Global variables
 DEFAULT_PORT = 4444
 STARTING_LIFE = 20
-#MAX_HAND_SIZE =
+MAX_HAND_SIZE = 7
 MAX_DECK_SIZE = 50
 MIN_DECK_SIZE = 1
-#DEFAULT_TIME_LIMIT =
-#PING_INTERVAL =
-#PING_TIMEOUT =
+DEFAULT_TIME_LIMIT = 60000
+PING_INTERVAL = 30
+PING_TIMEOUT = 10

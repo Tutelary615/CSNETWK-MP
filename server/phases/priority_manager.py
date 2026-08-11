@@ -6,62 +6,94 @@ Manages priority based from the priority state machine (Section 8.2 of the RFC):
       - Stack non-empty: resolve top item, AP gets priority again
       - Stack empty: step ends
 """
-
+import logging
 from enum import Enum, auto
 from typing import Optional
-from server.state.game_state import GameState
+from server.pdu import builder
+from shared.constants import ErrorCode as ec
 
-
-class PriorityResult(Enum):
-    PRIORITY_PASSED = auto()
-    RESOLVED_STACK_ITEM = auto()
-    STEP_ENDED = auto()
-
+logger = logging.getLogger(__name__)
 
 class PriorityManager:
-    @staticmethod
-    def grant_initial_priority(game_state: GameState) -> None:
-        game_state.priority_holder_id = game_state.active_player_id
-        game_state.last_passer_id = None
-        game_state.current_priority_seq = game_state.next_seq()
+    def __init__(self, game_server):
+        self.gs = game_server # turn manager resides here
+        self.state = game_server.state # shortcut to game state
 
-    @staticmethod
-    def reset_pass_tracker(game_state: GameState) -> None:
-        game_state.last_passer_id = None
+    # Give priority to player_id and broadcast PRIORITY_GRANT
+    async def grant_initial_priority(self, player_id: str) -> None:
+        self.state.priority_holder_id = player_id
+        seq = self.state.next_seq()
+        self.state.current_priority_seq = seq
+        pdu = builder.priority_grant(seq, player_id)
+        await self.gs.send_to(player_id, pdu)
+        logger.debug("Priority granted to %s (seq=%d)", player_id, seq)
 
-    @staticmethod
-    def _get_next_player_id(game_state: GameState, current_player_id: str) -> Optional[str]:
-        if not game_state.player_ids or current_player_id not in game_state.player_ids:
-            return None
-        idx = game_state.player_ids.index(current_player_id)
-        next_idx = (idx + 1) % len(game_state.player_ids)
-        return game_state.player_ids[next_idx]
+    async def grant_active_player(self) -> None:
+        await self.grant(self.state.active_player_id)
 
-    @classmethod
-    def handle_pass(cls, game_state: GameState, player_id: str, engine) -> PriorityResult:
-        if game_state.priority_holder_id != player_id:
-            raise ValueError(f"Player '{player_id}' does not hold priority.")
+    async def reset_pass_tracker(self) -> None:
+        self.state.last_passer_id = None
+        await self.grant_active_player()
+
+    # Validate an incoming action PDU's seq_num
+    async def validate_action(self, pdu: dict, player_id: str) -> bool:
+        # Check priority holder
+        if self.state.priority_holder_id != player_id:
+            await self.gs.send_to(
+                player_id,
+                builder.error(
+                    seq = self.state.next_seq(),
+                    code = ec.NOT_YOUR_PRIORITY,
+                    message = f"You do not hold priority. Current holder: "
+                              f"{self.state.priority_holder_id}.",
+                    rejected_action = pdu
+                )
+            )
+            return False
+
+        # Check seq_num
+        incoming_seq = pdu.get("seq_num")
+        expected_seq = self.state.current_priority_seq
+        if incoming_seq != expected_seq:
+            seq = self.state.next_seq()
+            await self.gs.send_to(
+                player_id,
+                builder.error(
+                    seq = seq,
+                    code = ec.STALE_ACTION,
+                    message = f"Priority token mismatch. Expected seq_num "
+                              f"{expected_seq}, got {incoming_seq}.",
+                    rejected_action = pdu
+                )
+            )
+            # Re-issue the current PRIORITY_GRANT so the player can try again
+            await self.grant(player_id)
+            return False
+
+        return True
+
+    # Handle priority pass
+    async def handle_pass(self, pdu: dict, player_id: str) -> PriorityResult:
+        # Moved validation to a separate function
+        if not await self.validate_action(pdu, player_id):
+            return
+
+        last_passer = self.state.last_passer_id
+        self.state.last_passer_id = player_id
+
+        opponent_id = self.state.opponent_id(player_id)
+        both_passed = (last_passer == opponent_id)
 
         # Check if another player previously passed without any actions in between
-        if game_state.last_passer_id is not None and game_state.last_passer_id != player_id:
-            # Both/all players have passed consecutively!
-            game_state.last_passer_id = None
+        if both_passed:
+            self.state.last_passer_id = None # reset
 
-            if not game_state.stack.is_empty():
-                # Stack non-empty: resolve top item, AP gets priority again
-                engine.resolve_top_stack_item(game_state)
-                game_state.priority_holder_id = game_state.active_player_id
-                game_state.current_priority_seq = game_state.next_seq()
-                return PriorityResult.RESOLVED_STACK_ITEM
+            if not self.state.stack.is_empty():
+                # Stack non-empty: move logic to turn manager
+                await self.gs.turn_manager.resolve_top_of_stack()
             else:
-                # Stack empty: step ends
-                game_state.priority_holder_id = None
-                game_state.current_priority_seq = game_state.next_seq()
-                return PriorityResult.STEP_ENDED
+                # Stack empty: advance step
+                await self.gs.turn_manager.advance_step()
         else:
             # First pass in sequence: pass priority to the next player
-            next_player = cls._get_next_player_id(game_state, player_id)
-            game_state.last_passer_id = player_id
-            game_state.priority_holder_id = next_player
-            game_state.current_priority_seq = game_state.next_seq()
-            return PriorityResult.PRIORITY_PASSED
+            await self.grant(opponent_id)

@@ -2,7 +2,7 @@
 Constructs outgoing PDU for the server
 """
 
-from shared.constants import PDU, Phase
+from shared.constants import PDU, Phase, DEFAULT_TIME_LIMIT
 
 # ERROR PDU (S->C)
 def error(seq: int, code: str, message: str, rejected_action: dict = None) -> dict:
@@ -39,78 +39,95 @@ def lobby_state(seq: int, players_ready : int, waiting_for : list[int]) -> dict:
     }
 
 # PHASE TRANSITION PDU (S->C)
-def phase_transition(seq: int, phase: str, active_player_id: str) -> dict:
+def phase_transition(seq: int, from_phase: str, to_phase: str, 
+                     active_player_id: str, turn: int) -> dict:
     return {
         "type": PDU.PHASE_TRANSITION,
         "seq_num": seq,
-        "phase": phase,
-        "active_player_id": active_player_id,
+        "from_phase": from_phase,
+        "active_player": active_player_id,
+        "turn": turn
     }
 
 
 # PRIORITY GRANT PDU (S->C)
-def priority_grant(seq: int, player_id: str) -> dict:
+def priority_grant(seq: int, player_id: str, 
+                   time_limit_ms: int = DEFAULT_TIME_LIMIT) -> dict:
     return {
         "type": PDU.PRIORITY_GRANT,
         "seq_num": seq,
         "player_id": player_id,
+        "time_limit_ms": time_limit_ms
     }
 
 # STACK PUSH PDU (S->C)
-def stack_push(seq: int, item_id: str, card_data: dict, controller_id: str) -> dict:
+def stack_push(seq: int, item) -> dict:
+    # item is a StackItem instance
     return {
         "type": PDU.STACK_PUSH,
         "seq_num": seq,
-        "item_id": item_id,
-        "card_data": card_data,
-        "controller_id": controller_id
+        "stack_item_id": item.stack_item_id,
+        "item_type": item.item_type,
+        "source": item.source_id,
+        "targets": item.targets,
+        "controller": item.controller_id
     }
 
 # STACK RESOLVE PDU (S->C)
-def stack_resolve(seq: int, item_id: str, result_data: dict = None) -> dict:
-    pdu = {
+def stack_resolve(seq: int, stack_item_id: str, result: str, 
+                  state_changes: list) -> dict:
+    return {
         "type": PDU.STACK_RESOLVE,
         "seq_num": seq,
-        "item_id": item_id,
+        "stack_item_id": stack_item_id,
+        "result": result,
+        "state_changes": state_changes
     }
-    if result_data is not None:
-        pdu["result_data"] = result_data
-    return pdu
 
 # TRIGGER ORDER PDU (S->C)
-def trigger_order(seq: int, triggers: list) -> dict:
+def trigger_order(seq: int, player_id: str, trigger_ids: list) -> dict:
     return {
         "type": PDU.TRIGGER_ORDER,
         "seq_num": seq,
-        "triggers": triggers
+        "player_id": player_id,
+        "trigger_ids": trigger_ids
     }
 
 # TRIGGER CHOICE PDU (S->C)
-def trigger_choice(seq: int, trigger_id: str, choices: list) -> dict:
+def trigger_choice(seq: int, trigger_id: str, source_id: str,
+                   effect_summary: str, requires_target: bool,
+                   legal_targets: list) -> dict:
     return {
         "type": PDU.TRIGGER_CHOICE,
         "seq_num": seq,
         "trigger_id": trigger_id,
-        "choices": choices,
+        "source_id": source_id,
+        "effect_summary": effect_summary,
+        "requires_target": requires_target,
+        "legal_targets": legal_targets,
     }
 
 
 # COMBAT DAMAGE RESULT PDU (S->C)
-def combat_damage_result(seq: int, damage_report: list) -> dict:
+def combat_damage_result(seq: int, damage_events: list,
+                         life_totals: dict, creatures_died: list) -> dict:
     return {
         "type": PDU.COMBAT_DAMAGE_RESULT,
         "seq_num": seq,
-        "damage_report": damage_report,
+        "damage_events": damage_events,
+        "life_totals": life_totals,
+        "creatures_died": creatures_died
     }
 
 
 # GAME OVER PDU (S->C)
-def game_over(seq: int, winner_id: str, reason: str) -> dict:
+def game_over(seq: int, winner_id: str, loser_id: str, reason: str) -> dict:
     return {
         "type": PDU.GAME_OVER,
         "seq_num": seq,
         "winner_id": winner_id,
-        "reason": reason,
+        "loser_id": loser_id,
+        "reason": reason
     }
 
 
