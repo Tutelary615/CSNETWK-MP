@@ -59,7 +59,15 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
 
     print()
     print(" --- THE STACK ---")
-    # TODO: Print stack display here
+    if stack:
+        for i, item in enumerate(reversed(stack)):
+            arrow = "->" if i == 0 else " "
+            print(f"{arrow} [{item.get('stack_item_id')}] "
+                  f"{item.get('source')} "
+                  f"(ctrl: {item.get('controller')}, "
+                  f"targets: {item.get('targets', [])})")
+    else:
+        print("(empty)")
 
     print()
     print(" --- YOUR BOARD --- ")
@@ -69,14 +77,15 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
     print(f" Library: {my_lib} cards")
     print(f" Battlefield: {_format_battlefield(my_bf)}")
     print(f" Graveyard: {my_gy or '(empty)'}")
+    print(f" Land played: {'Yes' if land else 'No'}")
 
     print()
     print(" --- YOUR HAND ---")
     if hand:
         for i, card_id in enumerate(hand):
-            print(f" [{i}] {card_id}")
+            print(f"[{i}] {card_id}")
     else:
-        print(" (empty)")
+        print("(empty)")
 
     print()
 
@@ -105,10 +114,38 @@ def render_game_over(pdu: dict, my_id: str) -> None:
     print()
 
 def render_error(pdu: dict) -> None:
-    print(f"\n [ERROR] {pdu.get('code')}: {pdu.get('message')}")
+    print(f"\n[ERROR] {pdu.get('code')}: {pdu.get('message')}")
+
+def render_stack_push(pdu: dict) -> None:
+    print(f"\n[STACK] {pdu.get('source')} pushed to stack "
+          f"(id: {pdu.get('stack_item_id')})")
+
+def render_stack_resolve(pdu: dict) -> None:
+    result = pdu.get("result")
+    sid = pdu.get("stack_item_id")
+    print(f"\n[STACK] {sid} resolved: {result}")
+
+
+def render_phase_transition(pdu: dict) -> None:
+    print(f"\n[PHASE] {pdu.get('from_phase')} -> {pdu.get('to_phase')}"
+          f"(turn {pdu.get('turn')})")
 
 def _format_battlefield(perms: list) -> str:
     if not perms:
         return "(empty)"
+    parts = []
+    for p in perms:
+        card_id = p.get("id", "?")
+        tapped = "T" if p.get("tapped") else "U"
+        if "power" in p:
+            dmg = p.get("damage", 0)
+            pw = p.get("power")
+            tgh = p.get("toughness")
+            sick = "[sick]" if p.get("summoning_sick") else ""
+            parts.append(f"{card_id} ({tapped}, {pw}/{tgh}, dmg: {dmg} {sick})")
+        else:
+            parts.append(f"{card_id} ({tapped})")
+
+    return " ".join(parts)
 
     

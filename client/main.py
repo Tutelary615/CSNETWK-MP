@@ -9,7 +9,9 @@ import json
 import argparse
 
 from pathlib import Path
-from client.display import render_lobby, render_game
+from client.display import (render_lobby, render_game, render_game_over,
+                            render_error, render_stack_push, render_stack_resolve,
+                            render_phase_transition)
 from client.input_handler import InputHandler
 from shared.constants import DEFAULT_PORT, PDU
 from shared.framing import read_pdu, write_pdu, set_verbose
@@ -23,16 +25,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class MTGNPClient:
-    def __init__(self, player_id: str, player_name: str, host: str, port: int, verbose: bool = False):
+    def __init__(self, player_id: str, host: str, port: int, verbose: bool = False):
         self.player_id = player_id
+        self.player_ready_seq = 0
         self.deck = self._load_fixed_deck(player_id)
-        self.player_name = player_name
         self.host = host
         self.port = port
         self.reader = None
         self.writer = None
         self.handler = InputHandler(self)
-        self.handler.player_name = player_name
         self.handler.my_id = player_id
         self.verbose = verbose
 
@@ -58,11 +59,12 @@ class MTGNPClient:
 
     async def run(self) -> None:
         await self.connect()
+        self.player_ready_seq += 1
 
         # Send PLAYER_READY PDU after connecting
         await self.send({
             "type": PDU.PLAYER_READY,
-            "seq_num": 1,
+            "seq_num": self.player_ready_seq,
             "player_id": self.player_id,
             "deck_list": self.deck
         })
@@ -105,16 +107,23 @@ class MTGNPClient:
                 render_game(state, self.player_id, self.player_name)
 
         elif pdu_type == PDU.PHASE_TRANSITION:
-            pass
+            render_phase_transition(pdu)
 
         elif pdu_type == PDU.PRIORITY_GRANT:
-            pass
+            seq = pdu.get("seq_num")
+            self.handler.update_seq(seq)
+            holder = pdu.get("player_id")
+            if holder == self.player_id:
+                print(f"\n[PRIORITY GRANTED - seq {seq}] Your move:")
+                print(" > ", end="", flush=True)
+            else:
+                print(f"\nWaiting for {holder}...")
 
         elif pdu_type == PDU.STACK_PUSH:
-            pass
+            render_stack_push(pdu)
 
         elif pdu_type == PDU.STACK_RESOLVE:
-            pass
+            render_stack_resolve(pdu)
 
         elif pdu_type == PDU.TRIGGER_ORDER:
             pass
@@ -123,23 +132,39 @@ class MTGNPClient:
             pass
 
         elif pdu_type == PDU.COMBAT_DAMAGE_RESULT:
-            pass
+            print(f"\n[COMBAT DAMAGE] ")
+            for ev in pdu.get("damage_events", []):
+                print(f"{ev['source']} -> {ev['target']}: {ev['amount']} damage")
+            for pid, life in pdu.get("life_totals", {}).items():
+                print(f"Life: {pid} = {life}")
+            died = pdu.get("creatures_died", [])
+            if died:
+                print(f"Died: {died}")
 
         elif pdu_type == PDU.GAME_OVER:
-            pass
+            render_game_over(pdu, self.player_id)
+
+            # Send a fresh PLAYER_READY to re-queue
+            await self.send({
+                "type": PDU.PLAYER_READY,
+                "seq_num": 1, # TODO: change this
+                "player_id": self.player_id,
+                "deck_list": self.deck
+            })
 
         elif pdu_type == PDU.ERROR:
-            pass
+            render_error(pdu)
+            print(" > ", end="", flush = True)
 
         elif pdu_type == PDU.PONG:
-            pass
+            logger.debug("PONG received (ts = %s)", pdu.get("timestamp"))
 
         else:
             print(f"Unhandled PDU type: {pdu_type}")
 
 def main():
     parser = argparse.ArgumentParser(description="MTGNP Client")
-    parser.add_argument("player_id", help="(e.g. player_1, player_2)")
+    parser.add_argument("player_id", help="must be a non-empty string")
     parser.add_argument(
         "-v", "--verbose",
         action = "store_true",
@@ -158,8 +183,7 @@ def main():
         set_verbose(True)
         logger.info("Verbose mode ON. All PDUs will be printed.\n")
 
-    player_name = input("Enter your player name: ").strip()
-    client = MTGNPClient(args.player_id, player_name, "127.0.0.1", DEFAULT_PORT, verbose=args.verbose)
+    client = MTGNPClient(args.player_id, "127.0.0.1", DEFAULT_PORT, verbose=args.verbose)
 
     try:
         asyncio.run(client.run())

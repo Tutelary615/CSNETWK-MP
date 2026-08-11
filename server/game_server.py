@@ -70,6 +70,11 @@ class GameServer:
 
     def remove_connection(self, player_id: str) -> None:
         self._writers.pop(player_id, None)
+        # Remove player info in game state
+        if player_id in self.state.players:
+            del self.state.players[player_id]
+        if player_id in self.state.player_ids:
+            self.state.player_ids.remove(player_id)
         logger.info("Player %s disconnected.", player_id)
 
 
