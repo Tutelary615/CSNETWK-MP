@@ -16,7 +16,7 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
     if player is None:
         return
 
-    expected_seq = game_server.last_sent_seq.get(player_id)
+    expected_seq = player.pending_mulligan_seq
     if pdu.get("seq_num") != expected_seq:
         await game_server.send_to(
             player_id, 
@@ -46,7 +46,7 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
         # Send the new hand
         seq = state.next_seq()
         view = state.to_visible_dict(player_id)
-        game_server.last_sent_seq[player_id] = seq
+        player.pending_mulligan_seq = seq
         await game_server.send_to(player_id, builder.game_state_update(seq, view))
         return
 
@@ -84,6 +84,7 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
         player.library.append(card_id)
 
     player.has_kept = True
+    player.pending_mulligan_seq = None
     logger.info("Player '%s' keeps hand (%d cards).", player_id, len(player.hand))
 
     # Check if both players have kept

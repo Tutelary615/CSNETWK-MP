@@ -25,6 +25,8 @@ class PlayerState:
     # Mana is computed atomically
     mana_pool: dict[str, int] = field(default_factory=dict)
 
+    pending_mulligan_seq: Optional[int] = None
+
     def shuffle_library(self) -> None:
         random.shuffle(self.library)
 
@@ -87,4 +89,48 @@ class PlayerState:
             else:
                 if available.get(color, 0) < amount:
                     return False
+        return True
+
+    def tap_for_mana_cost(self, mana_cost: dict, card_catalog: dict) -> bool:
+        # Build list of (permanent, color_produced) for untapped mana sources
+        sources = []
+        for perm in self.battlefield:
+            if perm.tapped:
+                continue
+            card = card_catalog.get(perm.card_id)
+            if not card or not card.effect:
+                continue
+            produces = card.effect.get("produces", {})
+            for color, amount in produces.items():
+                for _ in range(amount):
+                    sources.append((perm, color))
+
+        chosen: list = []
+        remaining_colored = dict(mana_cost)
+        generic_needed = remaining_colored.pop("generic", 0)
+
+        # Pay colored costs first
+        for color, amount in list(remaining_colored.items()):
+            need = amount
+            for perm, produced_color in sources:
+                if need <= 0:
+                    break
+                if produced_color == color and perm not in [c for c, _ in chosen]:
+                    chosen.append((perm, produced_color))
+                    need -= 1
+            if need > 0:
+                return False  # not enough of that color
+
+        # Pay generic from whatever's left over
+        used_perms = {perm for perm, _ in chosen}
+        leftover = [s for s in sources if s[0] not in used_perms]
+        if len(leftover) < generic_needed:
+            return False
+
+        for perm, color in leftover[:generic_needed]:
+            chosen.append((perm, color))
+
+        # All selections valid -- now actually tap them
+        for perm, _ in chosen:
+            perm.tapped = True
         return True

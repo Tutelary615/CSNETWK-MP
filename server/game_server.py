@@ -22,7 +22,7 @@ from server.state.player_state import PlayerState
 from server.pdu.dispatcher import Dispatcher
 from server.actions.handlers import (
     handle_cast_spell, handle_concede, handle_discard,
-    handle_ping, handle_play_land
+    handle_ping, handle_play_land, handle_activate_ability
 )
 
 CATALOG_PATH = Path(__file__).parent.parent / "data" / "card-set.json"
@@ -70,7 +70,7 @@ class GameServer:
         d.register(PDU.CONCEDE, handle_concede)
         d.register(PDU.DISCARD, handle_discard)
         d.register(PDU.PING, handle_ping)
-        #d.register(PDU.ACTIVATE_ABILITY, handler)
+        d.register(PDU.ACTIVATE_ABILITY, handle_activate_ability)
         #d.register(PDU.TRIGGER_ORDER_RESPONSE, handler)
         #d.register(PDU.TRIGGER_CHOICE_RESPONSE, handler)
 
@@ -133,6 +133,7 @@ class GameServer:
             seq = self.state.next_seq()
             view = self.state.to_visible_dict(pid) # personalized view
             self.last_sent_seq[pid] = seq
+            self.state.get_player(pid).pending_mulligan_seq = seq
             await self.send_to(pid, builder.game_state_update(seq, view))
 
     async def start_in_game(self) -> None:

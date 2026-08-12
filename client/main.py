@@ -7,13 +7,14 @@ import logging
 import sys
 import json
 import argparse
+import time
 
 from pathlib import Path
 from client.display import (render_lobby, render_game, render_game_over,
                             render_error, render_stack_push, render_stack_resolve,
                             render_phase_transition)
 from client.input_handler import InputHandler
-from shared.constants import DEFAULT_PORT, PDU
+from shared.constants import DEFAULT_PORT, PDU, PING_INTERVAL, PING_TIMEOUT
 from shared.framing import read_pdu, write_pdu, set_verbose
 
 logging.basicConfig(
@@ -37,6 +38,11 @@ class MTGNPClient:
         self.handler.my_id = player_id
         self.verbose = verbose
 
+        # Heartbeat tracking
+        self._awaiting_pong = False
+        self._pong_received_event = asyncio.Event()
+        self._shutdown_event = asyncio.Event()
+
     def _load_fixed_deck(self, slot: int) -> list:
         deck_path = Path(__file__).parent.parent / "data" / f"deck_{slot}.json"
         with open(deck_path, "r", encoding="utf-8") as f:
@@ -48,6 +54,33 @@ class MTGNPClient:
 
     async def send(self, pdu: dict) -> None:
         await write_pdu(self.writer, pdu)
+
+    async def _heartbeat_loop(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(PING_INTERVAL)
+
+                self._pong_received_event.clear()
+                self._awaiting_pong = True
+                await self.send({
+                    "type": PDU.PING,
+                    "seq_num": 0,
+                    "timestamp": time.time()
+                })
+                logger.debug("PING sent.")
+
+                try:
+                    await asyncio.wait_for(
+                        self._pong_received_event.wait(),
+                        timeout=PING_TIMEOUT
+                    )
+                    self._awaiting_pong = False
+                except asyncio.TimeoutError:
+                    print("\n[HEARTBEAT] No PONG received in time. Disconnecting.")
+                    self._close_connection()
+                    return # ends this task, which ends run() via FIRST_COMPLETED
+        except asyncio.CancelledError:
+            pass
 
     async def run(self) -> None:
         await self.connect()
@@ -61,10 +94,29 @@ class MTGNPClient:
             "deck_list": self.deck
         })
 
-        await asyncio.gather(
-            self._receive_loop(), # continuously receive incoming PDUs
-            self.handler.read_loop()  # handle input from user
-        )
+        tasks = [
+            asyncio.create_task(self._receive_loop()),
+            asyncio.create_task(self.handler.read_loop()),
+            asyncio.create_task(self._heartbeat_loop()),
+        ]
+
+        # If any task ends, tear down the rest cleanly.
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for t in pending:
+            t.cancel()
+        for t in pending:
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
+
+    def _on_pong_received(self) -> None:
+        self._awaiting_pong = False
+        self._pong_received_event.set()
+
+    def _close_connection(self) -> None:
+        if self.writer:
+            self.writer.close()
 
     async def _receive_loop(self) -> None:
         try:

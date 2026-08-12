@@ -37,6 +37,7 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
     card = card_catalog.get(card_id)
@@ -50,34 +51,24 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
-    # Sorcery speed check
-    if card.is_sorcery:
-        if state.phase not in SORCERY_SPEED_PHASES or player_id != state.active_player_id:
+    # Sorcery and creature speed check
+    if card.is_sorcery or card.is_creature:
+        if (state.phase not in SORCERY_SPEED_PHASES 
+                or player_id != state.active_player_id
+                or not state.stack_is_empty()):
             await game_server.send_to(
                 player_id,
                 builder.error(
                     seq = state.next_seq(),
                     code = ErrorCode.WRONG_PHASE,
-                    message = "Sorceries may only be cast during your main phase with an empty stack.",
+                    message = "Sorceries and creatures may only be cast during your main phase with an empty stack.",
                     rejected_action = pdu,
                 )
             )
-            return
-
-    # Creature speed check (same as sorcery)
-    if card.is_creature:
-        if state.phase not in SORCERY_SPEED_PHASES or player_id != state.active_player_id:
-            await game_server.send_to(
-                player_id,
-                builder.error(
-                    seq = state.next_seq(),
-                    code = ErrorCode.WRONG_PHASE,
-                    message = "Creatures may only be cast during your main phase.",
-                    rejected_action = pdu,
-                )
-            )
+            await pm.reissue_priority(player_id)
             return
 
     # Mana payment check
@@ -91,13 +82,13 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
     # TODO: validate targets (ILLEGAL_TARGET check)
 
     # Remove from hand, tap mana sources, push to stack
     player.hand.remove(card_id)
-    # TODO: tap the actual mana sources declared in mana_payment
 
     item = state.stack.push(StackItemType.SPELL, card_id, player_id, targets)
 
@@ -134,6 +125,7 @@ async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
     if player.land_played_this_turn:
@@ -146,6 +138,7 @@ async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
     card_id = pdu.get("card_id")
@@ -159,6 +152,7 @@ async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
     card = card_catalog.get(card_id)
@@ -172,6 +166,7 @@ async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:
                 rejected_action = pdu,
             )
         )
+        await pm.reissue_priority(player_id)
         return
 
     # Move land from hand to battlefield
@@ -195,6 +190,95 @@ async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:
 
     await pm.grant_initial_priority(player_id)
 
+# Handle ACTIVATE_ABILITY
+async def handle_activate_ability(pdu: dict, player_id: str, game_server) -> None:
+    state = game_server.state
+    pm = game_server.priority_manager
+    player = state.get_player(player_id)
+    card_catalog = game_server.card_catalog
+
+    if not await pm.validate_action(pdu, player_id):
+        return
+
+    creature_id = pdu.get("creature_id")
+    perm = player.get_permanent(creature_id)
+
+    if perm is None:
+        await game_server.send_to(
+            player_id,
+            builder.error(
+                seq = state.next_seq(),
+                code = ErrorCode.ILLEGAL_ACTION,
+                message = f"'{creature_id}' is not your permanent.",
+                rejected_action = pdu,
+            )
+        )
+        await pm.reissue_priority(player_id)
+        return
+
+    card = card_catalog.get(perm.card_id)
+    ability = card.effect.get("activated_ability") if card and card.effect else None
+
+    if ability is None:
+        await game_server.send_to(
+            player_id,
+            builder.error(
+                seq = state.next_seq(),
+                code = ErrorCode.ILLEGAL_ACTION,
+                message = f"'{creature_id}' has no activated ability.",
+                rejected_action = pdu,
+            )
+        )
+        await pm.reissue_priority(player_id)
+        return
+
+    cost = ability.get("cost", {})
+
+    if cost.get("tap") and perm.tapped:
+        await game_server.send_to(
+            player_id,
+            builder.error(
+                seq = state.next_seq(),
+                code = ErrorCode.ILLEGAL_ACTION,
+                message = f"'{creature_id}' is already tapped.",
+                rejected_action = pdu,
+            )
+        )
+        await pm.reissue_priority(player_id)
+        return
+
+    if cost.get("tap") and perm.effective_summoning_sick:
+        await game_server.send_to(
+            player_id,
+            builder.error(
+                seq = state.next_seq(),
+                code = ErrorCode.ILLEGAL_ACTION,
+                message = f"'{creature_id}' has summoning sickness and cannot use tap abilities.",
+                rejected_action = pdu,
+            )
+        )
+        await pm.reissue_priority(player_id)
+        return
+
+    # Pay the cost
+    if cost.get("tap"):
+        perm.tapped = True
+
+    # Apply the effect, currently only mana production is supported
+    effect = ability.get("effect", {})
+    produces = effect.get("produces", {})
+    for color, amount in produces.items():
+        player.mana_pool[color] = player.mana_pool.get(color, 0) + amount
+
+    logger.info("Player '%s' activated '%s' (produced %s).", player_id, creature_id, produces)
+
+    for pid in state.player_ids:
+        seq = state.next_seq()
+        view = state.to_visible_dict(pid)
+        await game_server.send_to(pid, builder.game_state_update(seq, view))
+
+    # AP simply retains priority
+    await pm.grant_initial_priority(player_id)
 
 # Handle CONCEDE
 async def handle_concede(pdu: dict, player_id: str, game_server) -> None:
@@ -203,7 +287,6 @@ async def handle_concede(pdu: dict, player_id: str, game_server) -> None:
     winner_id = state.opponent_id(player_id)
     logger.info("Player '%s' conceded.", player_id)
     await game_server.end_game(winner_id, player_id, GameOverReason.CONCEDE)
-
 
 # Handle DISCARD
 async def handle_discard(pdu: dict, player_id: str, game_server) -> None:

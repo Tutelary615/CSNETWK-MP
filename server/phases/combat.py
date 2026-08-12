@@ -52,7 +52,6 @@ class CombatManager:
         self.awaiting_attackers = True
 
     async def handle_declare_attackers(self, pdu: dict, player_id: str) -> None:
-        # TODO: Validate summoning sickness, tap check, etc.
         if player_id != self.state.active_player_id:
             await self.gs.send_to(
                 player_id,
@@ -69,12 +68,39 @@ class CombatManager:
         if not await self.gs.priority_manager.validate_action(pdu, player_id):
             return
 
+        ap = self.state.get_player(player_id)
         attackers = pdu.get("attackers")
+        for atk in attackers:
+            perm = ap.get_permanent(atk["creature_id"])
+            if perm is None:
+                await self.gs.send_to(player_id, builder.error(
+                    seq=self.state.next_seq(), code=ec.ILLEGAL_ACTION,
+                    message=f"'{atk['creature_id']}' is not your permanent.",
+                    rejected_action=pdu))
+                return
+            if perm.tapped:
+                await self.gs.send_to(player_id, builder.error(
+                    seq=self.state.next_seq(), code=ec.ILLEGAL_ACTION,
+                    message=f"'{atk['creature_id']}' is already tapped.",
+                    rejected_action=pdu))
+                return
+            if perm.effective_summoning_sick:
+                await self.gs.send_to(player_id, builder.error(
+                    seq=self.state.next_seq(), code=ec.ILLEGAL_ACTION,
+                    message=f"'{atk['creature_id']}' has summoning sickness.",
+                    rejected_action=pdu))
+                return
+            if "defender" in perm.keywords:
+                await self.gs.send_to(player_id, builder.error(
+                    seq=self.state.next_seq(), code=ec.ILLEGAL_ACTION,
+                    message=f"'{atk['creature_id']}' has defender and cannot attack.",
+                    rejected_action=pdu))
+                return
+
         self.attackers = attackers
         self.awaiting_attackers = False
 
         # Tap attacking creatures
-        ap = self.state.get_player(player_id)
         for atk in attackers:
             perm = ap.get_permanent(atk["creature_id"])
             if perm:

@@ -35,6 +35,10 @@ class PriorityManager:
         self.state.last_passer_id = None
         await self.grant_active_player()
 
+    async def reissue_priority(self, player_id: str) -> None:
+        pdu = builder.priority_grant(self.state.current_priority_seq, player_id)
+        await self.gs.send_to(player_id, pdu)
+
     # Validate an incoming action PDU's seq_num
     async def validate_action(self, pdu: dict, player_id: str) -> bool:
         # Check priority holder
@@ -67,7 +71,7 @@ class PriorityManager:
                 )
             )
             # Re-issue the current PRIORITY_GRANT so the player can try again
-            await self.grant_initial_priority(player_id)
+            await self.reissue_priority(player_id)
             return False
 
         return True
