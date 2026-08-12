@@ -5,7 +5,7 @@ Before running the following instructions, make sure to install `asyncio` first
 - To run server, type this in the terminal:
 > python -m server.main
 - To run client, type the following:
-> python -m client.main <\player_id\> <\deck_slot\> (ex. python -m client.main player_1 1)
+> python -m client.main \<player_id\> \<deck_slot\> (ex. python -m client.main player_1 1)
 
 To add verbose mode, add the `-v` flag at the end of your command
 
