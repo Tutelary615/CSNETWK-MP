@@ -117,7 +117,19 @@ class TurnManager:
             for perm in player.battlefield:
                 perm.damage = 0
 
-        # TODO: clear "until end of turn" effects when those are implemented
+        # clear "until end of turn" effects when those are implemented
+        for player in self.state.players.values():
+            for perm in player.battlefield:
+                perm.damage = 0
+                if hasattr(perm, "temp_power_buff"):
+                    perm.temp_power_buff = 0
+                if hasattr(perm, "temp_toughness_buff"):
+                    perm.temp_toughness_buff = 0
+                if hasattr(perm, "temp_effects"):
+                    perm.temp_effects.clear()
+
+        await self._broadcast_state_to_all()
+        await self._end_of_turn()
 
         await self._broadcast_state_to_all()
         await self._end_of_turn()
@@ -161,11 +173,38 @@ class TurnManager:
 
     def _targets_legal(self, target_ids: list[str]) -> bool:
         # Check that all listed targets still exist on the battlefield or are valid players.
-        # TODO: extend with protection, hexproof, etc. as cards are added.
-    
+        # extend with protection, hexproof, etc. as cards are added.
+    def _targets_legal(self, target_ids: list[str], caster_id: str = None) -> bool:
         for tid in target_ids:
             if tid in self.state.player_ids:
                 continue
+
+            found = False
+            for player_id, player in self.state.players.items():
+                for perm in player.battlefield:
+                    if perm.card_id == tid:
+                        found = True
+                        
+                        # Hexproof: Opponents cannot target
+                        if getattr(perm, "hexproof", False) and caster_id and player_id != caster_id:
+                            return False
+                        
+                        # Shroud: No player can target
+                        if getattr(perm, "shroud", False):
+                            return False
+                        
+                        # Protection flag check
+                        if getattr(perm, "protected", False):
+                            return False
+                        break
+                if found:
+                    break
+
+            if not found:
+                return False
+
+        return True
+    
             # Check if it's a permanent on any battlefield
             found = False
             for player in self.state.players.values():
