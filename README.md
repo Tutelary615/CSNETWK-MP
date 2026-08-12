@@ -10,9 +10,9 @@ Before running the following instructions, make sure to install `asyncio` first
 To add verbose mode, add the `-v` flag at the end of your command
 
 ## Work Distribution Matrix
-| Task/Feature | Kharlene | TJ | Mika | Jam |
+| Task/Feature | Monloy | Marquez | Martinez | Lat |
 | ----------- | ----------- | ----------- | ----------- | ----------- |
-| TCP Server: connection handling, framing, dispatch | [x] | [] | [] | [] |
+| TCP Server: connection handling, framing, dispatch | [x] | [X] | [] | [] |
 | Game lifecycle: LOBBY, GAME_SETUP, MULLIGAN logic | [x] | [x] | [] | [] |
 | Turn & phase engine (all phases/steps, transitions) | [x] | [] | [] | [] |
 | Priority & Stack logic, spell/ability resolution | [] | [] | [x] | [] |
