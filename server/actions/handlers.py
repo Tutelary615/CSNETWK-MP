@@ -105,7 +105,7 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
     await game_server.broadcast(builder.stack_push(seq, item))
 
     # Caster retains priority after casting
-    await pm.grant(player_id)
+    await pm.grant_initial_priority(player_id)
 
     logger.info("Player '%s' cast '%s'.", player_id, card_id)
 
@@ -193,7 +193,7 @@ async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:
         view = state.to_visible_dict(pid)
         await game_server.send_to(pid, builder.game_state_update(seq, view))
 
-    await pm.grant(player_id)
+    await pm.grant_initial_priority(player_id)
 
 
 # Handle CONCEDE
