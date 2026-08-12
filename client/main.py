@@ -82,12 +82,13 @@ class MTGNPClient:
 
         # Handle PDUs received from server here
         if pdu_type == PDU.GAME_STATE_UPDATE:
-            state = pdu.get("state", {})
+            state = pdu.get("game_state", {})
             phase = state.get("phase", "")
 
             # Update player hand and opponent id
             my_hand = state.get("hand", {}).get(self.player_id, [])
             self.handler.update_hand(my_hand)
+            self.handler.update_state_seq(pdu.get("seq_num", 0))
 
             for pid in state.get("life_totals", {}):
                 if pid != self.player_id:

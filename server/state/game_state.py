@@ -109,7 +109,7 @@ class GameState:
             ]
 
             # Set graveyard visible to all
-            state["graveyard"][pid] = len(player.graveyard)
+            state["graveyard"][pid] = list(player.graveyard)
 
             # Set library counts visible
             state["library_counts"][pid] = len(player.library)

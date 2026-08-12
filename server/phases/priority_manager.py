@@ -29,7 +29,7 @@ class PriorityManager:
         logger.debug("Priority granted to %s (seq=%d)", player_id, seq)
 
     async def grant_active_player(self) -> None:
-        await self.grant(self.state.active_player_id)
+        await self.grant_initial_priority(self.state.active_player_id)
 
     async def reset_pass_tracker(self) -> None:
         self.state.last_passer_id = None
@@ -67,7 +67,7 @@ class PriorityManager:
                 )
             )
             # Re-issue the current PRIORITY_GRANT so the player can try again
-            await self.grant(player_id)
+            await self.grant_initial_priority(player_id)
             return False
 
         return True
@@ -96,4 +96,4 @@ class PriorityManager:
                 await self.gs.turn_manager.advance_step()
         else:
             # First pass in sequence: pass priority to the next player
-            await self.grant(opponent_id)
+            await self.grant_initial_priority(opponent_id)

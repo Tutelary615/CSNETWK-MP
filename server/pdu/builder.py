@@ -40,12 +40,13 @@ def lobby_state(seq: int, players_ready : int, waiting_for : list[int]) -> dict:
 
 # PHASE TRANSITION PDU (S->C)
 def phase_transition(seq: int, from_phase: str, to_phase: str, 
-                     active_player_id: str, turn: int) -> dict:
+                     active_player: str, turn: int) -> dict:
     return {
         "type": PDU.PHASE_TRANSITION,
         "seq_num": seq,
         "from_phase": from_phase,
-        "active_player": active_player_id,
+        "to_phase": to_phase,
+        "active_player": active_player,
         "turn": turn
     }
 

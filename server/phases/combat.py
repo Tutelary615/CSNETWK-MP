@@ -36,7 +36,7 @@ class CombatManager:
         elif phase == Phase.COMBAT_DAMAGE:
             await self._do_combat_damage()
         elif phase == Phase.END_OF_COMBAT:
-            await self._do_end_of_combat()
+            await self._do_end_combat()
 
     # Start combat
     async def _do_begin_combat(self) -> None:

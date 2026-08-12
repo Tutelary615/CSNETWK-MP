@@ -34,6 +34,7 @@ class PlayerState:
             return None
         card_id = self.library.pop(0)
         self.hand.append(card_id)
+        return card_id
 
     def draw_opening_hand(self, count: int = 7) -> None:
         for _ in range(count):

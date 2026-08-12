@@ -13,7 +13,7 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
     state = game_server.state
     player = state.get_player(player_id)
 
-    if player_id is None:
+    if player is None:
         return
 
     expected_seq = game_server.last_sent_seq.get(player_id)

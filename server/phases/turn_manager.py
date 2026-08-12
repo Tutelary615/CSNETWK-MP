@@ -63,11 +63,11 @@ class TurnManager:
         elif phase in (Phase.DECLARE_ATTACKERS, Phase.DECLARE_BLOCKERS,
                        Phase.ASSIGN_DAMAGE_ORDER, Phase.COMBAT_DAMAGE,
                        Phase.FIRST_STRIKE_DAMAGE):
-            await self.gs.combat_manager.handle_combat_phase(phase)
+            await self.gs.combat_manager.transition(phase)
         elif phase not in NO_PRIORITY_PHASES:
             # All other phases with a priority window
             await self._broadcast_state_to_all()
-            await self.pm.open_window()
+            await self.pm.reset_pass_tracker()
 
     # UNTAP step
     async def _do_untap(self) -> None:
@@ -94,7 +94,7 @@ class TurnManager:
                 return
 
         await self._broadcast_state_to_all()
-        await self.pm.open_window()
+        await self.pm.reset_pass_tracker()
 
     # CLEANUP step
     async def _do_cleanup(self) -> None:

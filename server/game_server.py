@@ -51,6 +51,8 @@ class GameServer:
         self.combat_manager = CombatManager(self)
         self.rules_engine = RulesEngine(self)
 
+        self.turn_manager.pm = self.priority_manager
+
         # PDU dispatcher
         self.dispatcher = Dispatcher()
         self._register_handlers()
@@ -117,6 +119,7 @@ class GameServer:
             player.battlefield = []
             player.mulligan_count = 0
             player.has_kept = False
+            player.land_played_this_turn = False
             player.shuffle_library()
             player.draw_opening_hand(7)
 

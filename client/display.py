@@ -42,7 +42,7 @@ def render_game(state: dict, my_id: str) -> None:
 
     for pid, life, in lifes.items():
         marker = " <- YOU" if pid == my_id else ""
-        print(f" {my_id}: {life} life{marker}")
+        print(f" {pid}: {life} life{marker}")
 
     print()
 
@@ -54,7 +54,7 @@ def render_game(state: dict, my_id: str) -> None:
             opp_gy = gy.get(pid, [])
             print(f" [{pid}]")
             print(f" Library: {opp_lib} cards      Hand: {opp_hand} cards")
-            print(f" Battlefield: {_format_battlefield(my_bf)}")
+            print(f" Battlefield: {_format_battlefield(opp_bf)}")
             print(f" Graveyard: { opp_gy or '(empty)'}")
 
 

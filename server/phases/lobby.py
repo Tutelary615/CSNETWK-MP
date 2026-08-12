@@ -66,6 +66,7 @@ async def lobby_state(pdu: dict, player_id: str, game_server):
                 rejected_action = pdu
             )
         )
+        return
 
     # Additional check if player exists in game state
     player_state = state.get_player(player_id)

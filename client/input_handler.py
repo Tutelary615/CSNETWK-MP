@@ -16,8 +16,8 @@ Commands:
   block <creature_id> <atk_id>  Declare a blocker
   block none                    Declare no blockers
   concede                       Concede the game
-  mulligan                      Start mulligan choice
-  keep                          Player keeps their opening hand
+  mulligan                      Take a mulligan
+  keep                          Keep your opening hand
   hand                          Re-display your hand
   help                          Show this message
 """
@@ -26,6 +26,7 @@ class InputHandler:
     def __init__(self, client):
         self.client = client
         self.current_seq = 0 # updated by client when it receives PRIORITY_GRANT
+        self.last_state_seq = 0
         self.my_id = ""
         self.opponent_id = ""
         self.last_hand = []
@@ -35,6 +36,9 @@ class InputHandler:
 
     def update_hand(self, hand: list) -> None:
         self.last_hand = hand
+
+    def update_state_seq(self, seq: int) -> None:
+        self.last_state_seq = seq
 
     # Continuously read lines from stdin and convert to PDU to be sent
     async def read_loop(self) -> None:
@@ -156,7 +160,7 @@ class InputHandler:
         if cmd == "mulligan":
             return {
                 "type": PDU.MULLIGAN_CHOICE,
-                "seq_num": self.current_seq,
+                "seq_num": self.last_state_seq,
                 "keep": False,
                 "cards_to_bottom": []
             }
@@ -166,7 +170,7 @@ class InputHandler:
             bottoms = parts[1:] # optional
             return {
                 "type": PDU.MULLIGAN_CHOICE,
-                "seq_num": self.current_seq,
+                "seq_num": self.last_state_seq,
                 "keep": True,
                 "cards_to_bottom": bottoms
             }
