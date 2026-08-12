@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 # Handle CAST_SPELL
-async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
-    # Validate a push a spell onto stack
+async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:    # Validate a push a spell onto stack
     state = game_server.state
     pm = game_server.priority_manager
     card_catalog = game_server.card_catalog
@@ -26,7 +25,7 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
     payment = pdu.get("mana_payment", {})
     player = state.get_player(player_id)
 
-    # Card must be in hand
+    # Card must be in player's hand
     if card_id not in player.hand:
         await game_server.send_to(
             player_id,
@@ -52,30 +51,16 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
         )
         return
 
-    # Sorcery speed check
+    # Sorcery & Creature speed check
     if card.is_sorcery:
-        if state.phase not in SORCERY_SPEED_PHASES or player_id != state.active_player_id:
+        if state.phase not in SORCERY_SPEED_PHASES or player_id != state.active_player_id or not state.stack.is_empty():            
             await game_server.send_to(
                 player_id,
                 builder.error(
-                    seq = state.next_seq(),
-                    code = ErrorCode.WRONG_PHASE,
-                    message = "Sorceries may only be cast during your main phase with an empty stack.",
-                    rejected_action = pdu,
-                )
-            )
-            return
-
-    # Creature speed check (same as sorcery)
-    if card.is_creature:
-        if state.phase not in SORCERY_SPEED_PHASES or player_id != state.active_player_id:
-            await game_server.send_to(
-                player_id,
-                builder.error(
-                    seq = state.next_seq(),
-                    code = ErrorCode.WRONG_PHASE,
-                    message = "Creatures may only be cast during your main phase.",
-                    rejected_action = pdu,
+                    seq=state.next_seq(),
+                    code=ErrorCode.WRONG_PHASE,
+                    message="Sorceries and creatures may only be cast during your Main Phase with an empty stack.",
+                    rejected_action=pdu,
                 )
             )
             return
@@ -93,11 +78,32 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
         )
         return
 
-    # TODO: validate targets (ILLEGAL_TARGET check)
+    # alidate targets (ILLEGAL_TARGET check)
+    if targets and hasattr(game_server, "turn_manager"):
+        if not game_server.turn_manager._targets_legal(targets, caster_id=player_id):
+            await game_server.send_to(
+                player_id,
+                builder.error(
+                    seq=state.next_seq(),
+                    code=ErrorCode.ILLEGAL_TARGET,
+                    message="One or more selected targets are illegal or no longer exist.",
+                    rejected_action=pdu,
+                )
+            )
+            return
 
     # Remove from hand, tap mana sources, push to stack
     player.hand.remove(card_id)
-    # TODO: tap the actual mana sources declared in mana_payment
+\    
+    # tap the actual mana sources declared in mana_payment
+    payment_sources = payment.get("sources", []) if isinstance(payment, dict) else payment
+    for source_id in payment_sources:
+        land_perm = next(
+            (p for p in player.battlefield if p.card_id == source_id and not p.tapped),
+            None
+        )
+        if land_perm:
+            land_perm.tapped = True
 
     item = state.stack.push(StackItemType.SPELL, card_id, player_id, targets)
 
@@ -109,6 +115,10 @@ async def handle_cast_spell(pdu: dict, player_id: str, game_server) -> None:
 
     logger.info("Player '%s' cast '%s'.", player_id, card_id)
 
+# Priority Pass
+async def handle_priority_pass(pdu: dict, player_id: str, game_server) -> None:
+    """Handles priority pass PDU and delegates to PriorityManager state machine."""
+    await game_server.priority_manager.handle_pass(pdu, player_id)
 
 # Handle PLAY_LAND
 async def handle_play_land(pdu: dict, player_id: str, game_server) -> None:

@@ -5,6 +5,7 @@ Handles routing of client PDUs to the correct handler
 import logging
 from shared.constants import PDU, ErrorCode
 from server.pdu import builder
+from server.rules.engine import GameEngineError
 
 logger = logging.getLogger(__name__)
 
@@ -46,3 +47,28 @@ class Dispatcher:
 
         logger.debug("Dispatching %s from %s", pdu_type, player_id)
         await handler(pdu, player_id, game_server)
+
+        try:
+            await handler(pdu, player_id, game_server)
+        except GameEngineError as e:
+            logger.warning("Engine rule violation by '%s': [%s] %s", player_id, e.code, e.message)
+            await game_server.send_to(
+                player_id,
+                builder.error(
+                    seq=game_server.state.next_seq(),
+                    code=e.code,
+                    message=e.message,
+                    rejected_action=pdu
+                )
+            )
+        except Exception as e:
+            logger.exception("Unexpected server error dispatching '%s' from '%s'", pdu_type, player_id)
+            await game_server.send_to(
+                player_id,
+                builder.error(
+                    seq=game_server.state.next_seq(),
+                    code=ErrorCode.ILLEGAL_ACTION,
+                    message="An unexpected internal error occurred.",
+                    rejected_action=pdu
+                )
+            )
