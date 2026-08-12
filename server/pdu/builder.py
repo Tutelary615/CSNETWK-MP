@@ -31,7 +31,7 @@ def lobby_state(seq: int, players_ready : int, waiting_for : list[int]) -> dict:
     return {
         "type": PDU.GAME_STATE_UPDATE,
         "seq_num": seq,
-        "state": {
+        "game_state": {
             "phase": "LOBBY",
             "players_ready": players_ready,
             "waiting_for": waiting_for
