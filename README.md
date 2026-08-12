@@ -19,7 +19,7 @@ To add verbose mode, add the `-v` flag at the end of your command
 | Combat system (attackers, blockers, damage) | [] | [] | [] | [x] |
 | Client implementation & state rendering | [x] | [] | [] | [] |
 | PDU serialisation/deserialisation (all 25 PDU types) | [x] | [] | [x] | [] |
-| Error handling, PING/PONG heartbeat, disconnect logic | [x] | [] | [] | [] |
+| Error handling, PING/PONG heartbeat, disconnect logic | [x] | [] | [x] | [] |
 | Verbose mode (client + server PDU logging, toggle on/off) | [x] | [] | [] | [] |
 | Testing & interoperability | [x] | [x] | [x] | [] |
 | README / documentation / AI disclosure | [x] | [x] | [x] | [x] |
