@@ -25,10 +25,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class MTGNPClient:
-    def __init__(self, player_id: str, host: str, port: int, verbose: bool = False):
+    def __init__(self, player_id: str, deck_slot: int, host: str, port: int, verbose: bool = False):
         self.player_id = player_id
         self.player_ready_seq = 0
-        self.deck = self._load_fixed_deck(player_id)
+        self.deck = self._load_fixed_deck(deck_slot)
         self.host = host
         self.port = port
         self.reader = None
@@ -37,18 +37,10 @@ class MTGNPClient:
         self.handler.my_id = player_id
         self.verbose = verbose
 
-    def _load_fixed_deck(self, player_id: str) -> list[str]:
-        decks_path = Path(__file__).parent.parent / "data" / "player-decks.json"
-        
-        with open(decks_path, "r", encoding="utf-8") as f:
-            decks = json.load(f)
-        
-        if player_id not in decks:
-            print(f"No fixed deck found for player_id '{player_id}'.")
-            print(f"Available player IDs: {list(decks.keys())}")
-            sys.exit(1)
-        
-        return decks[player_id]
+    def _load_fixed_deck(self, slot: int) -> list:
+        deck_path = Path(__file__).parent.parent / "data" / f"deck_{slot}.json"
+        with open(deck_path, "r", encoding="utf-8") as f:
+            return json.load(f)
 
     async def connect(self) -> None:
         self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
@@ -102,9 +94,9 @@ class MTGNPClient:
                     self.handler.opponent_id = pid
 
             if phase == "LOBBY":
-                render_lobby(state, self.player_id, self.player_name)
+                render_lobby(state, self.player_id)
             else:
-                render_game(state, self.player_id, self.player_name)
+                render_game(state, self.player_id)
 
         elif pdu_type == PDU.PHASE_TRANSITION:
             render_phase_transition(pdu)
@@ -165,6 +157,7 @@ class MTGNPClient:
 def main():
     parser = argparse.ArgumentParser(description="MTGNP Client")
     parser.add_argument("player_id", help="must be a non-empty string")
+    parser.add_argument("deck_slot", help="1 or 2")
     parser.add_argument(
         "-v", "--verbose",
         action = "store_true",
@@ -183,7 +176,8 @@ def main():
         set_verbose(True)
         logger.info("Verbose mode ON. All PDUs will be printed.\n")
 
-    client = MTGNPClient(args.player_id, "127.0.0.1", DEFAULT_PORT, verbose=args.verbose)
+    client = MTGNPClient(args.player_id, args.deck_slot, "127.0.0.1", 
+                         DEFAULT_PORT, verbose=args.verbose)
 
     try:
         asyncio.run(client.run())

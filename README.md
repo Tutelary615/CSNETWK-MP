@@ -3,11 +3,11 @@
 ## Build and Run
 Before running the following instructions, make sure to install `asyncio` first
 - To run server, type this in the terminal:
-> python -m server.main \<*player_1* or *player_2*\>
+> python -m server.main
 - To run client, type the following:
-> python -m client.main
+> python -m client.main <\player_id\> <\deck_slot\> (ex. python -m client.main player_1 1)
 
-To add verbose mode, add the `-v` flag
+To add verbose mode, add the `-v` flag at the end of your command
 
 ## Work Distribution Matrix
 | Task/Feature | Kharlene | TJ | Mika | Jam |

@@ -22,6 +22,9 @@ class PlayerState:
     mulligan_count: int = 0
     has_kept: bool = False 
 
+    # Mana is computed atomically
+    mana_pool: dict[str, int] = field(default_factory=dict)
+
     def shuffle_library(self) -> None:
         random.shuffle(self.library)
 
@@ -35,3 +38,52 @@ class PlayerState:
     def draw_opening_hand(self, count: int = 7) -> None:
         for _ in range(count):
             self.draw()
+
+    # Battlefield helpers
+    def untap_all(self) -> None:
+        for perm in self.battlefield:
+            perm.tapped = False
+            perm.summoning_sick = False # cleared on untap (start of your turn)
+
+    def get_permanent(self, card_id: str) -> Optional[Permanent]:
+        for p in self.battlefield:
+            if p.card_id == card_id:
+                return p
+        return None
+
+    def remove_permanent(self, card_id: str) -> Optional[Permanent]:
+        for i, p in enumerate(self.battlefield):
+            if p.card_id == card_id:
+                return self.battlefield.pop(i)
+        return None
+
+    # Mana helpers
+    def available_mana(self, card_catalog: dict) -> dict[str, int]:
+        # Return a dict of available mana from untapped lands and mana creatures.
+        
+        pool: dict[str, int] = {}
+        for perm in self.battlefield:
+            if perm.tapped:
+                continue
+            card = card_catalog.get(perm.card_id)
+            if not card or not card.effect:
+                continue
+            produces = card.effect.get("produces", {})
+            for color, amount in produces.items():
+                pool[color] = pool.get(color, 0) + amount
+        return pool
+
+    def can_pay(self, mana_cost: dict, card_catalog: dict) -> bool:
+        # Check if player can pay mana cost
+        # TODO: implement generic mana matching across color sources.
+        
+        available = self.available_mana(card_catalog)
+        for color, amount in mana_cost.items():
+            if color == "generic":
+                total_available = sum(available.values())
+                if total_available < amount:
+                    return False
+            else:
+                if available.get(color, 0) < amount:
+                    return False
+        return True

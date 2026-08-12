@@ -39,6 +39,48 @@ class GameState:
     def get_player(self, player_id: str) -> Optional[PlayerState]:
         return self.players.get(player_id)
 
+    def opponent_id(self, player_id: str) -> Optional[str]:
+        for pid in self.player_ids:
+            if pid != player_id:
+                return pid
+        return None
+
+    def non_active_player_id(self) -> Optional[str]:
+        return self.opponent_id(self.active_player_id)
+
+    def switch_active_player(self) -> None:
+        self.active_player_id = self.non_active_player_id()
+
+    # State-based action check (called every game event)
+    def check_sbas(self) -> list[tuple[str, str]]:
+        # Check state-based actions for any triggered loss conditions
+
+        # TODO: expand as more card types and effects are implemented.
+        
+        from shared.constants import GameOverReason
+        results = []
+
+        for pid, player in self.players.items():
+            # Life total check
+            if player.life <= 0:
+                results.append((pid, GameOverReason.LIFE_ZERO))
+
+            # Library empty draw check is handled in draw_step, not here
+
+            # Creature lethal damage / zero toughness
+            dead = []
+            for perm in player.battlefield:
+                if perm.toughness is not None:
+                    if perm.toughness <= 0 or perm.damage >= perm.toughness:
+                        dead.append(perm.card_id)
+
+            for card_id in dead:
+                removed = player.remove_permanent(card_id)
+                if removed:
+                    player.graveyard.append(removed.card_id)
+
+        return results
+    
     # Set visible state for each player (will be called by game server in GAME_SETUP)
     def to_visible_dict(self, viewer_id: str) -> dict:
         state = {
@@ -70,7 +112,7 @@ class GameState:
             state["graveyard"][pid] = len(player.graveyard)
 
             # Set library counts visible
-            #state["library_counts"][pid] = len(player.library)
+            state["library_counts"][pid] = len(player.library)
 
             if pid == viewer_id:
                 state["hand"][pid] = list(player.hand) # viewer sees ther own hand

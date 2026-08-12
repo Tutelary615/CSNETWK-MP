@@ -10,1005 +10,224 @@ from shared.constants import ErrorCode as ec
 
 logger = logging.getLogger(__name__)
 
+class CombatManager:
+    def __init__(self, game_server):
+        self.gs = game_server
+        self.state = game_server.state
 
-# Combat state
-def _combat_data(state):
-    if not hasattr(state, "combat_attackers"):
-        state.combat_attackers = {}
+        self.attackers: list[dict] = []
+        self.blockers: list[dict] = []
+        self.damage_orders: dict = {}
 
-    if not hasattr(state, "combat_blockers"):
-        state.combat_blockers = {}
+        self.awaiting_attackers = False
+        self.awaiting_blockers = False
+        self.awaiting_damage_order = False
 
-    if not hasattr(state, "combat_damage_orders"):
-        state.combat_damage_orders = {}
+    # Change combat phase
+    async def transition(self, phase: str):
+        if phase == Phase.BEGIN_COMBAT:
+            await self._do_begin_combat()
+        elif phase == Phase.DECLARE_ATTACKERS:
+            await self._do_declare_attackers_step()
+        elif phase == Phase.DECLARE_BLOCKERS:
+            await self._do_declare_blockers_step()
+        elif phase == Phase.ASSIGN_DAMAGE_ORDER:
+            await self._do_assign_damage_order_step()
+        elif phase == Phase.COMBAT_DAMAGE:
+            await self._do_combat_damage()
+        elif phase == Phase.END_OF_COMBAT:
+            await self._do_end_of_combat()
 
-    if not hasattr(state, "first_strike_done"):
-        state.first_strike_done = set()
+    # Start combat
+    async def _do_begin_combat(self) -> None:
+        self.attackers = []
+        self.blockers = []
+        self.damage_orders = {}
 
+        await self._broadcast_state()
+        await self.gs.priority_manager.reset_pass_tracker()
 
-# Get all permanents
-def _all_permanents(state):
-    result = []
+    # Handle attacker declarations
+    async def _do_declare_attackers_step(self) -> None:
+        self.awaiting_attackers = True
 
-    for player in state.players.values():
-        result.extend(player.battlefield)
+    async def handle_declare_attackers(self, pdu: dict, player_id: str) -> None:
+        # TODO: Validate summoning sickness, tap check, etc.
+        if player_id != self.state.active_player_id:
+            await self.gs.send_to(
+                player_id,
+                builder.error(
+                    seq     = self.state.next_seq(),
+                    code    = ec.ILLEGAL_ACTION,
+                    message = "Only the active player may declare attackers.",
+                    rejected_action = pdu
+                )
+            )
+            return
 
-    return result
+        # Validate seq_num
+        if not await self.gs.priority_manager.validate_action(pdu, player_id):
+            return
 
+        attackers = pdu.get("attackers")
+        self.attackers = attackers
+        self.awaiting_attackers = False
 
-# Find a permanent
-def _find_permanent(state, permanent_id):
-    for player in state.players.values():
-        for permanent in player.battlefield:
-            if permanent.card_id == permanent_id:
-                return permanent
+        # Tap attacking creatures
+        ap = self.state.get_player(player_id)
+        for atk in attackers:
+            perm = ap.get_permanent(atk["creature_id"])
+            if perm:
+                perm.tapped = True
+        logger.info("Player '%s' declared %d attacker(s).", player_id, len(attackers))
 
-    return None
+        # If no attackers, end combat
+        if not attackers:
+            await self.gs.turn_manager._enter_phase(Phase.END_OF_COMBAT)
+            return
 
+        await self._broadcast_state()
+        await self.gs.priority_manager.reset_pass_tracker()
 
-# Find the owner of a permanent
-def _find_owner(state, permanent_id):
-    for player in state.players.values():
-        for permanent in player.battlefield:
-            if permanent.card_id == permanent_id:
-                return player
+    # Handle blocker declarations
+    async def _do_declare_blockers_step(self) -> None:
+        self.awaiting_blockers = True
 
-    return None
+    async def handle_declare_blockers(self, pdu: dict, player_id: str) -> None:
+        nap_id = self.state.non_active_player_id()
+        if player_id != nap_id:
+            await self.gs.send_to(
+                player_id,
+                builder.error(
+                    seq = self.state.next_seq(),
+                    code = ec.ILLEGAL_ACTION,
+                    message = "Only the non-active player may declare blockers.",
+                    rejected_action = pdu,
+                )
+            )
+            return
 
+        if not await self.gs.priority_manager.validate_action(pdu, player_id):
+            return
+        self.blockers = pdu.get("blockers", [])
+        self.awaiting_blockers = False
 
-# Get the opponent
-def _opponent_id(state, player_id):
-    for pid in state.player_ids:
-        if pid != player_id:
-            return pid
+        logger.info("%s declared blockers: %s", player_id, self.blockers)
 
-    return None
+        await self._broadcast_state()
+        await self.gs.priority_manager.reset_pass_tracker()
 
+    async def _do_assign_damage_order_step(self) -> None:
+        # TODO: identify multiply-blocked attackers and request ordering
+        self.awaiting_damage_order = True
 
-# Check if a permanent is a creature
-def _is_creature(permanent):
-    return (
-        permanent is not None
-        and permanent.power is not None
-        and permanent.toughness is not None
-    )
+    # Handle damage order
+    async def handle_assign_damage_order(self, pdu: dict, player_id: str) -> None:
+        # TODO: record damage ordering
+        attacker_id = pdu.get("attacker_id")
+        blocker_order = pdu.get("blocker_order", [])
 
+        self.damage_orders[attacker_id] = list(blocker_order)
 
-# Check if a creature has a keyword
-def _has_keyword(permanent, keyword):
-    return keyword in getattr(permanent, "keywords", [])
-
-
-# Check the sequence number
-def _validate_seq(pdu, player_id, game_server):
-    state = game_server.state
-
-    expected = getattr(state, "current_priority_seq", 0)
-
-    if expected == 0:
-        expected = game_server.last_sent_seq.get(player_id)
-
-    if pdu.get("seq_num") != expected:
-        return False, expected
-
-    return True, expected
-
-
-# Send an error
-async def _error(game_server, player_id, code, message, pdu):
-    state = game_server.state
-
-    await game_server.send_to(
-        player_id,
-        builder.error(
-            seq=state.next_seq(),
-            code=code,
-            message=message,
-            rejected_action=pdu
+        # TODO: Check if all orderings have been received
+        logger.info(
+            "%s ordered blockers for %s: %s",
+            player_id,
+            attacker_id,
+            blocker_order
         )
-    )
+        await self.gs.priority_manager.reset_pass_tracker()
 
 
-# Send the current game state
-async def _broadcast_state(game_server):
-    state = game_server.state
+    # Resolve normal combat damage
+    async def _do_combat_damage(self) -> None:
+        damage_events = []
+        creatures_died = []
 
-    for pid in state.player_ids:
-        seq = state.next_seq()
-        view = state.to_visible_dict(pid)
+        ap_id = self.state.active_player_id
+        nap_id = self.state.non_active_player_id()
+        ap = self.state.get_player(ap_id)
+        nap = self.state.get_player(nap_id)
 
-        await game_server.send_to(
-            pid,
-            builder.game_state_update(seq, view)
-        )
+        # Create list of blocking creature_ids
+        blocker_map: dict[str, list] = {a["creature_id"]: [] for a in self.attackers}
+        for blk in self.blockers:
+            if blk["blocking_id"] in blocker_map:
+                blocker_map[blk["blocking_id"]].append(blk["creature_id"])
 
-
-# Change combat phase
-async def _transition(game_server, new_phase):
-    state = game_server.state
-    old_phase = state.phase
-
-    state.phase = new_phase
-
-    seq = state.next_seq()
-
-    pdu = builder.phase_transition(
-        seq=seq,
-        phase=new_phase,
-        active_player_id=state.active_player_id
-    )
-
-    pdu["from_phase"] = old_phase
-    pdu["to_phase"] = new_phase
-    pdu["active_player"] = state.active_player_id
-    pdu["turn"] = state.turn
-
-    await game_server.broadcast(pdu)
-
-
-# Remove creatures with lethal damage
-def _remove_dead_creatures(state):
-    creatures_died = []
-
-    for player in state.players.values():
-        survivors = []
-
-        for permanent in player.battlefield:
-            if not _is_creature(permanent):
-                survivors.append(permanent)
+        for atk_info in self.attackers:
+            atk_id = atk_info["creature_id"]
+            atk_perm = ap.get_permanent(atk_id)
+            if atk_perm is None:
                 continue
 
-            if permanent.damage >= permanent.toughness:
-                player.graveyard.append(permanent.card_id)
-                creatures_died.append(permanent.card_id)
+            blocking = blocker_map.get(atk_id, [])
 
-                logger.info(
-                    "Creature %s died for player %s.",
-                    permanent.card_id,
-                    player.player_id
-                )
+            if not blocking:
+                # Deal damage to defending player
+                nap.life -= atk_perm.power
+                damage_events.append({
+                    "source": atk_id,
+                    "target": nap_id,
+                    "amount": atk_perm.power,
+                })
             else:
-                survivors.append(permanent)
+                # Deal damage to first blocker in order
+                # TODO: implement full damage assignment order (trample, etc.)
+                blk_id = blocking[0]
+                blk_perm = nap.get_permanent(blk_id)
+                if blk_perm:
+                    blk_perm.damage += atk_perm.power
+                    atk_perm.damage += blk_perm.power
+                    damage_events.append({
+                        "source": atk_id,
+                        "target": blk_id,
+                        "amount": atk_perm.power,
+                    })
+                    damage_events.append({
+                        "source": blk_id,
+                        "target": atk_id,
+                        "amount": blk_perm.power,
+                    })
 
-        player.battlefield = survivors
+        # Check SBAs: remove creatures with lethal damage
+        losses = self.state.check_sbas()
 
-    return creatures_died
+        # Collect died creatures
+        creatures_died = None # TODO: collect died creatures
+        seq = self.state.next_seq()
+        life_totals = {pid: player.life for pid, player in self.state.players.items()}
 
-
-# Check if a creature has first strike
-def _creature_can_first_strike(permanent):
-    return (
-        _has_keyword(permanent, "first_strike")
-        or _has_keyword(permanent, "double_strike")
-    )
-
-
-# Check if a creature can deal normal combat damage
-def _creature_can_normal_strike(permanent):
-    if _has_keyword(permanent, "double_strike"):
-        return True
-
-    if _has_keyword(permanent, "first_strike"):
-        return False
-
-    return True
-
-
-# Get blockers for each attacker
-def _attacker_blockers(state):
-    result = {}
-
-    for blocker_id, attacker_id in state.combat_blockers.items():
-        result.setdefault(attacker_id, []).append(blocker_id)
-
-    return result
-
-
-# Start combat
-async def begin_combat(game_server):
-    state = game_server.state
-
-    _combat_data(state)
-
-    state.combat_attackers.clear()
-    state.combat_blockers.clear()
-    state.combat_damage_orders.clear()
-    state.first_strike_done.clear()
-
-    await _transition(game_server, Phase.BEGIN_COMBAT)
-
-
-# Handle attacker declarations
-async def handle_declare_attackers(
-    pdu: dict,
-    player_id: str,
-    game_server
-) -> None:
-    state = game_server.state
-
-    _combat_data(state)
-
-    if state.phase != Phase.DECLARE_ATTACKERS:
-        await _error(
-            game_server,
-            player_id,
-            ec.WRONG_PHASE,
-            "DECLARE_ATTACKERS is only legal during DECLARE_ATTACKERS.",
-            pdu
-        )
-        return
-
-    if player_id != state.active_player_id:
-        await _error(
-            game_server,
-            player_id,
-            ec.NOT_YOUR_PRIORITY,
-            "Only the Active Player may declare attackers.",
-            pdu
-        )
-        return
-
-    valid_seq, expected = _validate_seq(
-        pdu,
-        player_id,
-        game_server
-    )
-
-    if not valid_seq:
-        await _error(
-            game_server,
-            player_id,
-            ec.STALE_ACTION,
-            f"Expected seq_num {expected}, got {pdu.get('seq_num')}.",
-            pdu
-        )
-        return
-
-    attackers = pdu.get("attackers")
-
-    if not isinstance(attackers, list):
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "'attackers' must be a list.",
-            pdu
-        )
-        return
-
-    opponent_id = _opponent_id(state, player_id)
-
-    if opponent_id is None:
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "There is no opponent.",
-            pdu
-        )
-        return
-
-    declared_ids = set()
-
-    for declaration in attackers:
-        if not isinstance(declaration, dict):
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                "Each attacker declaration must be an object.",
-                pdu
+        await self.gs.broadcast(
+            builder.combat_damage_result(
+                seq=seq,
+                damage_events=damage_events, 
+                life_totals=life_totals, 
+                creatures_died=creatures_died
             )
+        )
+
+        if losses:
+            loser_id, reason = losses[0]
+            winner_id = self.state.opponent_id(loser_id)
+            await self.gs.end_game(winner_id, loser_id, reason)
             return
 
-        creature_id = declaration.get("creature_id")
-        target = declaration.get("target")
-
-        if not creature_id:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                "Attacker is missing creature_id.",
-                pdu
-            )
-            return
-
-        if creature_id in declared_ids:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Creature '{creature_id}' was declared more than once.",
-                pdu
-            )
-            return
-
-        declared_ids.add(creature_id)
-
-        if target != opponent_id:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_TARGET,
-                f"Attacker must target opponent '{opponent_id}'.",
-                pdu
-            )
-            return
-
-        permanent = _find_permanent(state, creature_id)
-
-        if permanent is None:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Creature '{creature_id}' is not on the battlefield.",
-                pdu
-            )
-            return
-
-        if permanent.controller_id != player_id:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Creature '{creature_id}' is not controlled by you.",
-                pdu
-            )
-            return
-
-        if not _is_creature(permanent):
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"'{creature_id}' is not a creature.",
-                pdu
-            )
-            return
-
-        if permanent.tapped:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Creature '{creature_id}' is tapped.",
-                pdu
-            )
-            return
-
-        if permanent.effective_summoning_sick:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Creature '{creature_id}' has summoning sickness.",
-                pdu
-            )
-            return
-
-    # Declare the attackers
-    state.combat_attackers.clear()
-
-    for declaration in attackers:
-        creature_id = declaration["creature_id"]
-        permanent = _find_permanent(state, creature_id)
-
-        permanent.tapped = True
-
-        state.combat_attackers[creature_id] = {
-            "target": declaration["target"]
-        }
-
-    logger.info(
-        "%s declared attackers: %s",
-        player_id,
-        list(state.combat_attackers.keys())
-    )
-
-    await _broadcast_state(game_server)
-
-    # Skip combat if there are no attackers
-    if not attackers:
-        await _transition(game_server, Phase.END_OF_COMBAT)
-        return
-
-
-# Handle blocker declarations
-async def handle_declare_blockers(
-    pdu: dict,
-    player_id: str,
-    game_server
-) -> None:
-    state = game_server.state
-
-    _combat_data(state)
-
-    if state.phase != Phase.DECLARE_BLOCKERS:
-        await _error(
-            game_server,
-            player_id,
-            ec.WRONG_PHASE,
-            "DECLARE_BLOCKERS is only legal during DECLARE_BLOCKERS.",
-            pdu
-        )
-        return
-
-    if player_id == state.active_player_id:
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "Only the Non-Active Player may declare blockers.",
-            pdu
-        )
-        return
-
-    valid_seq, expected = _validate_seq(
-        pdu,
-        player_id,
-        game_server
-    )
-
-    if not valid_seq:
-        await _error(
-            game_server,
-            player_id,
-            ec.STALE_ACTION,
-            f"Expected seq_num {expected}, got {pdu.get('seq_num')}.",
-            pdu
-        )
-        return
-
-    blockers = pdu.get("blockers")
-
-    if not isinstance(blockers, list):
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "'blockers' must be a list.",
-            pdu
-        )
-        return
-
-    declared_blockers = set()
-    assigned_blockers = set()
-
-    for declaration in blockers:
-        if not isinstance(declaration, dict):
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                "Each blocker declaration must be an object.",
-                pdu
-            )
-            return
-
-        blocker_id = declaration.get("creature_id")
-        attacker_id = declaration.get("blocking_id")
-
-        if not blocker_id or not attacker_id:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                "Blocker declaration requires creature_id and blocking_id.",
-                pdu
-            )
-            return
-
-        if blocker_id in declared_blockers:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Blocker '{blocker_id}' was assigned more than once.",
-                pdu
-            )
-            return
-
-        declared_blockers.add(blocker_id)
-
-        if attacker_id not in state.combat_attackers:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"'{attacker_id}' is not an attacking creature.",
-                pdu
-            )
-            return
-
-        blocker = _find_permanent(state, blocker_id)
-
-        if blocker is None:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Blocker '{blocker_id}' is not on the battlefield.",
-                pdu
-            )
-            return
-
-        if blocker.controller_id != player_id:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Creature '{blocker_id}' is not controlled by you.",
-                pdu
-            )
-            return
-
-        if not _is_creature(blocker):
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"'{blocker_id}' is not a creature.",
-                pdu
-            )
-            return
-
-        if blocker.tapped:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Blocker '{blocker_id}' is tapped.",
-                pdu
-            )
-            return
-
-        if blocker_id in assigned_blockers:
-            await _error(
-                game_server,
-                player_id,
-                ec.ILLEGAL_ACTION,
-                f"Blocker '{blocker_id}' cannot block multiple attackers.",
-                pdu
-            )
-            return
-
-        assigned_blockers.add(blocker_id)
-
-    # Save the blockers
-    state.combat_blockers.clear()
-
-    for declaration in blockers:
-        state.combat_blockers[
-            declaration["creature_id"]
-        ] = declaration["blocking_id"]
-
-    logger.info(
-        "%s declared blockers: %s",
-        player_id,
-        state.combat_blockers
-    )
-
-    await _broadcast_state(game_server)
-
-
-# Handle damage order
-async def handle_assign_damage_order(
-    pdu: dict,
-    player_id: str,
-    game_server
-) -> None:
-    state = game_server.state
-
-    _combat_data(state)
-
-    if state.phase != Phase.ASSIGN_DAMAGE_ORDER:
-        await _error(
-            game_server,
-            player_id,
-            ec.WRONG_PHASE,
-            "ASSIGN_DAMAGE_ORDER is only legal during ASSIGN_DAMAGE_ORDER.",
-            pdu
-        )
-        return
-
-    if player_id != state.active_player_id:
-        await _error(
-            game_server,
-            player_id,
-            ec.NOT_YOUR_PRIORITY,
-            "Only the Active Player may assign damage order.",
-            pdu
-        )
-        return
-
-    valid_seq, expected = _validate_seq(
-        pdu,
-        player_id,
-        game_server
-    )
-
-    if not valid_seq:
-        await _error(
-            game_server,
-            player_id,
-            ec.STALE_ACTION,
-            f"Expected seq_num {expected}, got {pdu.get('seq_num')}.",
-            pdu
-        )
-        return
-
-    attacker_id = pdu.get("attacker_id")
-    blocker_order = pdu.get("blocker_order")
-
-    if not attacker_id:
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "Missing attacker_id.",
-            pdu
-        )
-        return
-
-    if not isinstance(blocker_order, list):
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "'blocker_order' must be a list.",
-            pdu
-        )
-        return
-
-    attacker = _find_permanent(state, attacker_id)
-
-    if attacker is None:
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            f"Attacker '{attacker_id}' does not exist.",
-            pdu
-        )
-        return
-
-    if attacker.controller_id != player_id:
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "You do not control this attacker.",
-            pdu
-        )
-        return
-
-    actual_blockers = [
-        blocker_id
-        for blocker_id, blocked_attacker in state.combat_blockers.items()
-        if blocked_attacker == attacker_id
-    ]
-
-    if len(actual_blockers) < 2:
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            f"Attacker '{attacker_id}' does not have multiple blockers.",
-            pdu
-        )
-        return
-
-    if len(blocker_order) != len(actual_blockers):
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "blocker_order must contain every blocker exactly once.",
-            pdu
-        )
-        return
-
-    if set(blocker_order) != set(actual_blockers):
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "blocker_order does not match the declared blockers.",
-            pdu
-        )
-        return
-
-    if len(set(blocker_order)) != len(blocker_order):
-        await _error(
-            game_server,
-            player_id,
-            ec.ILLEGAL_ACTION,
-            "A blocker may only appear once in blocker_order.",
-            pdu
-        )
-        return
-
-    state.combat_damage_orders[attacker_id] = list(blocker_order)
-
-    logger.info(
-        "%s ordered blockers for %s: %s",
-        player_id,
-        attacker_id,
-        blocker_order
-    )
-
-
-# Assign attacker damage
-def _assign_attacker_damage(
-    state,
-    attacker,
-    blockers,
-    damage_events
-):
-    remaining = max(attacker.power or 0, 0)
-
-    for blocker in blockers:
-        if remaining <= 0:
-            break
-
-        lethal_needed = max(
-            blocker.toughness - blocker.damage,
-            0
-        )
-
-        amount = min(remaining, lethal_needed)
-
-        if amount > 0:
-            blocker.damage += amount
-
-            damage_events.append({
-                "source": attacker.card_id,
-                "target": blocker.card_id,
-                "amount": amount
-            })
-
-            remaining -= amount
-
-
-# Assign blocker damage
-def _assign_blocker_damage(
-    attacker,
-    blocker,
-    damage_events
-):
-    amount = max(blocker.power or 0, 0)
-
-    if amount <= 0:
-        return
-
-    attacker.damage += amount
-
-    damage_events.append({
-        "source": blocker.card_id,
-        "target": attacker.card_id,
-        "amount": amount
-    })
-
-
-# Resolve combat damage
-def _resolve_damage_step(state, first_strike=False):
-    damage_events = []
-
-    blockers_by_attacker = _attacker_blockers(state)
-
-    for attacker_id, attacker_data in state.combat_attackers.items():
-        attacker = _find_permanent(state, attacker_id)
-
-        if attacker is None:
-            continue
-
-        if first_strike:
-            attacker_eligible = _creature_can_first_strike(attacker)
-
-            if attacker_eligible:
-                state.first_strike_done.add(attacker_id)
-        else:
-            if attacker_id in state.first_strike_done:
-                attacker_eligible = _has_keyword(
-                    attacker,
-                    "double_strike"
-                )
-            else:
-                attacker_eligible = _creature_can_normal_strike(
-                    attacker
-                )
-
-        if attacker_eligible:
-            blocker_ids = blockers_by_attacker.get(
-                attacker_id,
-                []
-            )
-
-            if blocker_ids:
-                order = state.combat_damage_orders.get(
-                    attacker_id,
-                    blocker_ids
-                )
-
-                blockers = []
-
-                for blocker_id in order:
-                    blocker = _find_permanent(
-                        state,
-                        blocker_id
-                    )
-
-                    if blocker is not None:
-                        blockers.append(blocker)
-
-                _assign_attacker_damage(
-                    state,
-                    attacker,
-                    blockers,
-                    damage_events
-                )
-            else:
-                target_id = attacker_data["target"]
-                defending_player = state.get_player(target_id)
-
-                if defending_player is not None:
-                    amount = max(attacker.power or 0, 0)
-
-                    if amount > 0:
-                        defending_player.life -= amount
-
-                        damage_events.append({
-                            "source": attacker.card_id,
-                            "target": target_id,
-                            "amount": amount
-                        })
-
-    # Blockers deal damage
-    for blocker_id, attacker_id in state.combat_blockers.items():
-        blocker = _find_permanent(state, blocker_id)
-        attacker = _find_permanent(state, attacker_id)
-
-        if blocker is None or attacker is None:
-            continue
-
-        if first_strike:
-            if not _creature_can_first_strike(blocker):
-                continue
-        else:
-            if blocker_id in state.first_strike_done:
-                if not _has_keyword(blocker, "double_strike"):
-                    continue
-            elif not _creature_can_normal_strike(blocker):
-                continue
-
-        _assign_blocker_damage(
-            attacker,
-            blocker,
-            damage_events
-        )
-
-        if first_strike:
-            state.first_strike_done.add(blocker_id)
-
-    return damage_events
-
-
-# Resolve first strike damage
-async def resolve_first_strike_damage(game_server):
-    state = game_server.state
-
-    if state.phase != Phase.FIRST_STRIKE_DAMAGE:
-        return
-
-    damage_events = _resolve_damage_step(
-        state,
-        first_strike=True
-    )
-
-    creatures_died = _remove_dead_creatures(state)
-
-    life_totals = {
-        pid: player.life
-        for pid, player in state.players.items()
-    }
-
-    seq = state.next_seq()
-
-    result = builder.combat_damage_result(
-        seq=seq,
-        damage_report=damage_events
-    )
-
-    result["damage_events"] = damage_events
-    result["life_totals"] = life_totals
-    result["creatures_died"] = creatures_died
-
-    await game_server.broadcast(result)
-
-    await _broadcast_state(game_server)
-
-    winner = _check_life_win(state)
-
-    if winner is not None:
-        loser = _opponent_id(state, winner)
-
-        await game_server.end_game(
-            winner,
-            loser,
-            "LIFE_ZERO"
-        )
-
-
-# Resolve normal combat damage
-async def resolve_combat_damage(game_server):
-    state = game_server.state
-
-    if state.phase != Phase.COMBAT_DAMAGE:
-        return
-
-    damage_events = _resolve_damage_step(
-        state,
-        first_strike=False
-    )
-
-    creatures_died = _remove_dead_creatures(state)
-
-    life_totals = {
-        pid: player.life
-        for pid, player in state.players.items()
-    }
-
-    seq = state.next_seq()
-
-    result = builder.combat_damage_result(
-        seq=seq,
-        damage_report=damage_events
-    )
-
-    result["damage_events"] = damage_events
-    result["life_totals"] = life_totals
-    result["creatures_died"] = creatures_died
-
-    await game_server.broadcast(result)
-
-    await _broadcast_state(game_server)
-
-    winner = _check_life_win(state)
-
-    if winner is not None:
-        loser = _opponent_id(state, winner)
-
-        await game_server.end_game(
-            winner,
-            loser,
-            "LIFE_ZERO"
-        )
-        return
-
-
-# Check for a player at zero life
-def _check_life_win(state):
-    for pid, player in state.players.items():
-        if player.life <= 0:
-            return _opponent_id(state, pid)
-
-    return None
-
-
-# End combat
-async def end_combat(game_server):
-    state = game_server.state
-
-    _combat_data(state)
-
-    state.combat_attackers.clear()
-    state.combat_blockers.clear()
-    state.combat_damage_orders.clear()
-    state.first_strike_done.clear()
-
-    await _transition(
-        game_server,
-        Phase.END_OF_COMBAT
-    )
+        await self._broadcast_state()
+        await self.gs.turn_manager._enter_phase(Phase.END_OF_COMBAT)
+
+
+    # End combat
+    async def _do_end_combat(self) -> None:
+        self.attackers.clear()
+        self.blockers.clear()
+        self.damage_orders.clear()
+
+        await self._broadcast_state()
+        await self.gs.priority_manager.reset_pass_tracker()
+
+    async def _broadcast_state(self) -> None:
+        for pid in self.state.player_ids:
+            seq  = self.state.next_seq()
+            view = self.state.to_visible_dict(pid)
+            await self.gs.send_to(pid, builder.game_state_update(seq, view))

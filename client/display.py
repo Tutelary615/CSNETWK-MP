@@ -2,15 +2,16 @@
 Display screen for the visible game state of client/player
 """
 import os
+from shared.constants import Phase
 
 def clear_screen() -> None:
     os.system("cls" if os.name == "nt" else "clear")
 
-def render_lobby(state: dict, my_id: str, my_name: str) -> None:
+def render_lobby(state: dict, my_id: str) -> None:
     print("\n" + "=" * 50)
     print(" LOBBY ")
     print("=" * 50)
-    print(f"Player: {my_name} (id: {my_id})")
+    print(f"Player: {my_id}")
     print(f"Players ready: {state.get('players_ready', 0)} / 2")
     waiting = state.get("waiting_for", [])
     if waiting:
@@ -19,7 +20,7 @@ def render_lobby(state: dict, my_id: str, my_name: str) -> None:
         print("Both players ready! Starting soon...")
     print("=" * 50)
 
-def render_game(state: dict, my_id: str, my_name: str) -> None:
+def render_game(state: dict, my_id: str) -> None:
     clear_screen()
 
     turn = state.get("turn", "?")
@@ -41,7 +42,7 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
 
     for pid, life, in lifes.items():
         marker = " <- YOU" if pid == my_id else ""
-        print(f" {my_name}: {life} life{marker}")
+        print(f" {my_id}: {life} life{marker}")
 
     print()
 
@@ -97,6 +98,8 @@ def render_game(state: dict, my_id: str, my_name: str) -> None:
     print("=" * 60)
     print()
 
+    if (phase == Phase.MULLIGAN):
+        print("Type 'keep' or 'mulligan': ")
     print("Your move: ")
 
 def render_game_over(pdu: dict, my_id: str) -> None:

@@ -45,7 +45,7 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
         logger.info("Player '%s' mulligans (count=%d).", player_id, player.mulligan_count)
 
         # Send the new hand
-        seq  = state.next_seq()
+        seq = state.next_seq()
         view = state.to_visible_dict(player_id)
         game_server.last_sent_seq[player_id] = seq
         await game_server.send_to(player_id, builder.game_state_update(seq, view))
@@ -57,9 +57,9 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
         await game_server.send_to(
             player_id,
             builder.error(
-                seq     = state.next_seq(),
-                code    = ec.ILLEGAL_ACTION,
-                message = f"cards_to_bottom must contain exactly {n} card(s). "
+                seq = state.next_seq(),
+                code = ec.ILLEGAL_ACTION,
+                message = f"cards_to_bottom must contain exactly {n} card(s)."
                           f"Got {len(cards_to_bottom)}.",
                 rejected_action = pdu,
             )
@@ -71,8 +71,8 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
             await game_server.send_to(
                 player_id,
                 builder.error(
-                    seq     = state.next_seq(),
-                    code    = ec.ILLEGAL_ACTION,
+                    seq = state.next_seq(),
+                    code = ec.ILLEGAL_ACTION,
                     message = f"Card '{card_id}' is not in your hand.",
                     rejected_action = pdu,
                 )

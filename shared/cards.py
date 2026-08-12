@@ -65,20 +65,23 @@ def load_catalog(path: str | Path) -> dict[str, Card]:
 
     for entry in raw:
         card = Card(
-            id        = entry["id"],
-            name      = entry["name"],
+            id = entry["id"],
+            name = entry["name"],
             card_type = entry["card_type"],
             mana_cost = entry.get("mana_cost", {}),
-            colors    = entry.get("colors", []),
-            power     = entry.get("power"),
+            colors = entry.get("colors", []),
+            power = entry.get("power"),
             toughness = entry.get("toughness"),
-            effect    = entry.get("effect"),
-            keywords  = entry.get("keywords", []),
+            effect = entry.get("effect"),
+            keywords = entry.get("keywords", []),
         )
 
         _catalog[card.id] = card
 
     return _catalog
+
+def get_card(card_id: str) -> Optional[Card]:
+    return _catalog.get(card_id)
 
 def is_valid_card_id(card_id: str) -> bool:
     return card_id in _catalog

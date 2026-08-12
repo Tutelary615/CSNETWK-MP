@@ -73,7 +73,7 @@ class PriorityManager:
         return True
 
     # Handle priority pass
-    async def handle_pass(self, pdu: dict, player_id: str) -> PriorityResult:
+    async def handle_pass(self, pdu: dict, player_id: str) -> None:
         # Moved validation to a separate function
         if not await self.validate_action(pdu, player_id):
             return

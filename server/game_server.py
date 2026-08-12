@@ -13,13 +13,16 @@ from shared.framing import write_pdu
 from server.pdu import builder
 from server.phases.lobby import lobby_state
 from server.phases.mulligan import handle_mulligan_choice
+from server.phases.priority_manager import PriorityManager
+from server.phases.turn_manager import TurnManager
+from server.phases.combat import CombatManager
+from server.rules.engine import RulesEngine
 from server.state.game_state import GameState
 from server.state.player_state import PlayerState
 from server.pdu.dispatcher import Dispatcher
-from server.phases.combat import (
-    handle_declare_attackers,
-    handle_declare_blockers,
-    handle_assign_damage_order,
+from server.actions.handlers import (
+    handle_cast_spell, handle_concede, handle_discard,
+    handle_ping, handle_play_land
 )
 
 CATALOG_PATH = Path(__file__).parent.parent / "data" / "card-set.json"
@@ -39,24 +42,32 @@ class GameServer:
         # Used for mulligan seq validation
         self.last_sent_seq: dict[str, int] = {}
 
+        # Used by cleanup discard loop
+        self.discard_event = asyncio.Event()
+
+        # Components
+        self.priority_manager = PriorityManager(self)
+        self.turn_manager = TurnManager(self)
+        self.combat_manager = CombatManager(self)
+        self.rules_engine = RulesEngine(self)
+
         # PDU dispatcher
         self.dispatcher = Dispatcher()
         self._register_handlers()
 
     def _register_handlers(self) -> None:
         d = self.dispatcher
-        # TODO: Register PDUs here (currently placeholders)
         d.register(PDU.PLAYER_READY, lobby_state)
         d.register(PDU.MULLIGAN_CHOICE, handle_mulligan_choice)
-        d.register(PDU.DECLARE_ATTACKERS, handle_declare_attackers)
-        d.register(PDU.DECLARE_BLOCKERS, handle_declare_blockers)
-        d.register(PDU.ASSIGN_DAMAGE_ORDER, handle_assign_damage_order)
-        #d.register(PDU.PRIORITY_PASS, self.priority_manager.handle_pass)
-        #d.register(PDU.CAST_SPELL, handle_cast_spell)
-        #d.register(PDU.PLAY_LAND, handle_play_land)
-        #d.register(PDU.CONCEDE, handle_concede)
-        #d.register(PDU.DISCARD, handle_discard)
-        #d.register(PDU.PING, handle_ping)
+        d.register(PDU.DECLARE_ATTACKERS, self.combat_manager.handle_declare_attackers)
+        d.register(PDU.DECLARE_BLOCKERS, self.combat_manager.handle_declare_blockers)
+        d.register(PDU.ASSIGN_DAMAGE_ORDER, self.combat_manager.handle_assign_damage_order)
+        d.register(PDU.PRIORITY_PASS, self.priority_manager.handle_pass)
+        d.register(PDU.CAST_SPELL, handle_cast_spell)
+        d.register(PDU.PLAY_LAND, handle_play_land)
+        d.register(PDU.CONCEDE, handle_concede)
+        d.register(PDU.DISCARD, handle_discard)
+        d.register(PDU.PING, handle_ping)
         #d.register(PDU.ACTIVATE_ABILITY, handler)
         #d.register(PDU.TRIGGER_ORDER_RESPONSE, handler)
         #d.register(PDU.TRIGGER_CHOICE_RESPONSE, handler)
@@ -68,13 +79,13 @@ class GameServer:
             self.state.player_ids.append(player_id)
         logger.info("Player %s connected", player_id)
 
-    def remove_connection(self, player_id: str) -> None:
+    def remove_connection(self, player_id: str, purge_state: bool = False) -> None:
         self._writers.pop(player_id, None)
         # Remove player info in game state
-        if player_id in self.state.players:
-            del self.state.players[player_id]
-        if player_id in self.state.player_ids:
-            self.state.player_ids.remove(player_id)
+        if purge_state:
+            self.state.players.pop(player_id, None)
+            if player_id in self.state.player_ids:
+                self.state.player_ids.remove(player_id)
         logger.info("Player %s disconnected.", player_id)
 
 
@@ -123,7 +134,7 @@ class GameServer:
 
     async def start_in_game(self) -> None:
         self.state.phase = Phase.UNTAP
-        # TODO: Begin turn handled by turn manager
+        await self.turn_manager.begin_turn()
 
     async def end_game(self, winner_id: str, loser_id: str, reason: str) -> None:
         logger.info("Game over. Winner: %s, Reason: %s", winner_id, reason)
