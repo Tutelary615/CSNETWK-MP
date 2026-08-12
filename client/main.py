@@ -140,7 +140,7 @@ class MTGNPClient:
             # Send a fresh PLAYER_READY to re-queue
             await self.send({
                 "type": PDU.PLAYER_READY,
-                "seq_num": 1, # TODO: change this
+                "seq_num": self.player_ready_seq,
                 "player_id": self.player_id,
                 "deck_list": self.deck
             })

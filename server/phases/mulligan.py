@@ -36,9 +36,8 @@ async def handle_mulligan_choice(pdu: dict, player_id: str, game_server) -> None
     if not keep:
         # London Mulligan: draw fresh 7, will bottom N cards when keeping
         player.mulligan_count += 1
+        player.library.extend(player.hand)
         player.hand.clear()
-        # Put remaining library + previous hand back, then reshuffle
-        player.library = list(player.library) # already emptied by prior draw
         player.draw_opening_hand(7)
         player.shuffle_library()
 

@@ -156,6 +156,7 @@ class GameServer:
         self.state.priority_holder_id = None
         self.state.last_passer_id = None
         self.state.seq_counter = 0
+        self.last_sent_seq.clear()
         self.state.stack.clear()
         self.ready_players.clear()
 

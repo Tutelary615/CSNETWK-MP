@@ -29,17 +29,7 @@ async def lobby_state(pdu: dict, player_id: str, game_server):
         )
         return
 
-    # Duplicate ID check
-    if player_id not in state.player_ids and pdu.get('player_id') in state.player_ids:
-        await game_server.send_to(
-            player_id,
-            builder.error(
-                seq = state.next_seq(),
-                code = ec.DUPLICATE_ID,
-                message = f"Player ID '{pdu.get('player_id')} is already taken.",
-                rejected_action = pdu
-            ))
-        return        
+    # NOTE: Moved duplicate ID check in connection.py  
 
     # Check if deck is within min and max size
     deck_list = pdu.get("deck_list", [])
