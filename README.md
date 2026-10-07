@@ -1,4 +1,5 @@
 # CSNETWK-MP
+Magic the Gathering Multiplayer Network Protocol (MTGNP)
 
 ## Build and Run
 Before running the following instructions, make sure to install `asyncio` first
